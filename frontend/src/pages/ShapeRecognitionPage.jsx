@@ -7,14 +7,38 @@ import { processFourier } from '../services/api';
 
 const SHAPE_PRESETS = [
   {
+    filename: 'test_hexagon_01.png',
+    label: 'Test Hexagon (Rotated 22°, Scale 0.88×)',
+    category: 'Independent Test Specimen',
+    description: '6-sided regular polygon with 22° rotation. Evaluates high-frequency corner harmonic resolution.'
+  },
+  {
+    filename: 'test_trapezium_01.png',
+    label: 'Test Trapezium (Rotated 18°, Scale 0.88×)',
+    category: 'Independent Test Specimen',
+    description: 'Asymmetric 4-sided trapezoid with non-parallel side slopes. Differentiated from triangle and rectangle.'
+  },
+  {
+    filename: 'test_unknown_01_amoeba.png',
+    label: 'Unfamiliar Amoeba Blob (Outlier)',
+    category: 'Out-of-Distribution Outlier',
+    description: 'Irregular wavy non-standard contour. Tests the open-set rejection threshold (must reject as Unknown).'
+  },
+  {
+    filename: 'test_unknown_02_crescent.png',
+    label: 'Unfamiliar Crescent Moon (Outlier)',
+    category: 'Out-of-Distribution Outlier',
+    description: 'Asymmetric crescent contour. Evaluates rejection mechanism against foreign geometric classes.'
+  },
+  {
     filename: 'test_star_01.png',
-    label: 'Test Star (Rotated 18°, Scale 0.9×)',
+    label: 'Test Star (Rotated 18°, Scale 0.88×)',
     category: 'Independent Test Specimen',
     description: '5-point star with 18° rotation and scale variation. Evaluates rotational invariance of the Fourier magnitude spectrum.'
   },
   {
     filename: 'test_circle_01.png',
-    label: 'Test Circle (Translated +15, -10)',
+    label: 'Test Circle (Translated +14, -12)',
     category: 'Independent Test Specimen',
     description: 'Circular contour with spatial center offset. Tests translation invariance via DC component nullification Z(0) = 0.'
   },
@@ -28,7 +52,7 @@ const SHAPE_PRESETS = [
     filename: 'test_rectangle_01.png',
     label: 'Test Rectangle (Rotated 35°)',
     category: 'Independent Test Specimen',
-    description: '2:1 aspect ratio rectangle rotated at 35°. Accurately differentiated from square via aspect ratio fundamental harmonic.'
+    description: '1.7:1 aspect ratio rectangle rotated at 35°. Accurately differentiated from square via aspect ratio fundamental harmonic.'
   },
   {
     filename: 'test_triangle_01.png',
@@ -37,22 +61,16 @@ const SHAPE_PRESETS = [
     description: 'Equilateral triangle oriented at 42°. Tests harmonic frequency distribution across 3 acute vertices.'
   },
   {
-    filename: 'star_01.png',
-    label: 'Training Star (Standard Prototype)',
+    filename: 'hexagon_01.png',
+    label: 'Training Hexagon (Standard Prototype)',
     category: 'Reference Library Prototype',
-    description: 'Standard 5-point star prototype from the training library.'
+    description: 'Standard regular 6-sided polygon prototype from the training library.'
   },
   {
-    filename: 'square_01.png',
-    label: 'Training Square (Standard Prototype)',
+    filename: 'trapezium_01.png',
+    label: 'Training Trapezium (Standard Prototype)',
     category: 'Reference Library Prototype',
-    description: 'Standard upright square prototype from the training library.'
-  },
-  {
-    filename: 'circle_01.png',
-    label: 'Training Circle (Standard Prototype)',
-    category: 'Reference Library Prototype',
-    description: 'Standard zero-eccentricity circle from the training library.'
+    description: 'Standard trapezoid prototype from the training library.'
   }
 ];
 
@@ -141,8 +159,10 @@ export default function ShapeRecognitionPage() {
     { key: 'binary_mask_base64', id: 'binary', num: 2, title: 'Preprocessed Binary Mask', desc: 'Otsu binarization with polarity check' },
     { key: 'contour_overlay_base64', id: 'contour', num: 3, title: 'Extracted Boundary & Centroid', desc: 'Uniformly resampled contour points (N=128)' },
     { key: 'reconstructed_contour_base64', id: 'reconstruction', num: 4, title: `Reconstructed Contour (K=${numDescriptors})`, desc: 'Inverse DFT from truncated low-frequency harmonics' },
-    { key: 'spectrum_chart_base64', id: 'spectrum', num: 5, title: 'Fourier Magnitude Spectrum', desc: 'Normalized harmonic energy |Z(k)| / |Z(1)|' }
+    { key: 'spectrum_chart_base64', id: 'spectrum', num: 5, title: 'Fourier Magnitude Spectrum', desc: 'Normalized harmonic energy |Z(k)| · √k' }
   ];
+
+  const isRecognized = resultData?.classification?.is_recognized ?? false;
 
   return (
     <div className="module-page-container">
@@ -151,8 +171,8 @@ export default function ShapeRecognitionPage() {
       <PageHeader
         moduleNumber="4"
         title="Fourier Descriptor-Based Shape Recognition"
-        description="Extracts planar object boundaries, computes invariant Fourier descriptors (invariant to translation, scale, rotation, and starting-point shift), reconstructs smoothed boundaries via inverse DFT, and classifies unknown shapes against reference benchmarks across 5 categories."
-        tags={['Boundary Representation', 'Fourier Descriptors', 'Invariant Shape Matching', 'Harmonic Reconstruction', 'k-NN Classification']}
+        description="Extracts planar object boundaries, computes invariant Fourier descriptors (invariant to translation, scale, rotation, and starting-point shift), reconstructs smoothed boundaries via inverse DFT, classifies shapes across 7 categories (Circle, Square, Rectangle, Triangle, Star, Hexagon, Trapezium), and rejects unfamiliar or foreign contours."
+        tags={['Boundary Representation', 'Fourier Descriptors', 'Open-Set Recognition', 'Harmonic Reconstruction', 'k-NN Classification']}
         accentColor="amber"
       />
 
@@ -166,7 +186,7 @@ export default function ShapeRecognitionPage() {
             onImageSelected={handleImageSelected}
             onClearImage={handleClearImage}
             label="Upload Shape Image"
-            hint="Silhouetted object image across 5 categories (circle, square, rectangle, triangle, star)"
+            hint="Silhouetted object image (Circle, Square, Rectangle, Triangle, Star, Hexagon, Trapezium, or Unknown)"
             disabled={isExecuting}
           />
 
@@ -209,7 +229,7 @@ export default function ShapeRecognitionPage() {
                   <span>64 (Fine Detail)</span>
                 </div>
                 <span className="control-help">
-                  Lower frequencies capture global silhouette; higher harmonics restore sharp corners and lobes.
+                  Lower frequencies capture global silhouette; higher harmonics restore sharp corners and polygon vertices.
                 </span>
               </div>
 
@@ -227,7 +247,7 @@ export default function ShapeRecognitionPage() {
                   <option value="cosine">Cosine Spectral Distance</option>
                 </select>
                 <span className="control-help">
-                  Metric used to query closest match in the 5-class training library.
+                  Metric used to query closest prototype in the 7-class training library.
                 </span>
               </div>
 
@@ -312,7 +332,7 @@ export default function ShapeRecognitionPage() {
             <div className="section-card empty-state-card">
               <h4 className="empty-state-title">No Shape Specimen Loaded</h4>
               <p className="empty-state-text">
-                Select one of the shape presets (Circle, Square, Rectangle, Triangle, Star) or upload a custom shape silhouette to extract Fourier descriptors and execute nearest-neighbor classification.
+                Select one of the shape presets (Hexagon, Trapezium, Circle, Square, Rectangle, Triangle, Star, or Unknown) or upload a custom shape silhouette to extract Fourier descriptors and execute open-set nearest-neighbor classification.
               </p>
             </div>
           )}
@@ -330,7 +350,7 @@ export default function ShapeRecognitionPage() {
                 Shape Ready for Fourier Recognition
               </h3>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', maxWidth: '480px', margin: '0 auto 1.5rem auto' }}>
-                Click <strong>"Extract Descriptors & Match"</strong> to resample the outer contour, compute the complex Discrete Fourier Transform, normalize for scale and rotation invariance, and classify against the 5-class shape library.
+                Click <strong>"Extract Descriptors & Match"</strong> to resample the outer contour, compute the complex Discrete Fourier Transform, normalize for scale and rotation invariance, and classify against the 7-class shape library with validation-based rejection.
               </p>
               <button
                 type="button"
@@ -347,7 +367,7 @@ export default function ShapeRecognitionPage() {
               <div className="academic-spinner"></div>
               <div className="loading-title">Computing Fourier Descriptors...</div>
               <div className="loading-sub">
-                Interpolating uniform arc-length contour, transforming complex signal, and matching harmonic descriptors against training library.
+                Interpolating uniform arc-length contour, transforming complex signal, and matching harmonic descriptors against training library with validation rejection.
               </div>
             </div>
           )}
@@ -355,25 +375,59 @@ export default function ShapeRecognitionPage() {
           {resultData && (
             <div className="enhancement-results-container">
               {/* 1. Hero Classification Prediction Card */}
-              <div className="shape-hero-card">
+              <div
+                className="shape-hero-card"
+                style={{
+                  borderColor: isRecognized ? 'rgba(52, 211, 153, 0.4)' : 'rgba(245, 158, 11, 0.5)',
+                  background: isRecognized
+                    ? 'linear-gradient(135deg, rgba(6, 78, 59, 0.35) 0%, rgba(15, 23, 42, 0.95) 100%)'
+                    : 'linear-gradient(135deg, rgba(120, 53, 15, 0.35) 0%, rgba(15, 23, 42, 0.95) 100%)'
+                }}
+              >
                 <div className="shape-hero-content">
                   <div className="shape-pred-block">
-                    <span className="shape-pred-text">
+                    <span
+                      className="shape-pred-text"
+                      style={{
+                        background: isRecognized
+                          ? 'linear-gradient(135deg, #34d399 0%, #38bdf8 100%)'
+                          : 'linear-gradient(135deg, #f87171 0%, #fbbf24 100%)',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent'
+                      }}
+                    >
                       {resultData.classification?.predicted_category}
                     </span>
                     <div className="shape-pred-label">
-                      <span className="shape-pred-title">Predicted Shape Category</span>
+                      <span className="shape-pred-title">
+                        {isRecognized ? 'Shape Identified' : 'Out-of-Distribution Contour Rejected'}
+                      </span>
                       <span className="shape-pred-subtitle">
-                        Best match: {resultData.classification?.best_match_filename} (Distance: {resultData.classification?.nearest_distance})
+                        Nearest candidate: <strong>{resultData.classification?.nearest_candidate_category}</strong> (Distance: {resultData.classification?.nearest_distance} vs Acceptance Threshold: {resultData.classification?.acceptance_threshold})
                       </span>
                     </div>
                   </div>
 
-                  <div className="shape-confidence-badge">
-                    <span>Similarity:</span>
-                    <span style={{ fontSize: '1.15rem' }}>{resultData.classification?.confidence_percentage}%</span>
+                  <div
+                    className="shape-confidence-badge"
+                    style={{
+                      backgroundColor: isRecognized ? 'rgba(52, 211, 153, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                      borderColor: isRecognized ? 'rgba(52, 211, 153, 0.4)' : 'rgba(239, 68, 68, 0.4)',
+                      color: isRecognized ? '#34d399' : '#f87171'
+                    }}
+                  >
+                    <span>Status:</span>
+                    <span style={{ fontSize: '0.95rem' }}>
+                      {isRecognized ? `Recognized (${resultData.classification?.confidence_percentage}%)` : 'Unknown Shape'}
+                    </span>
                   </div>
                 </div>
+
+                {resultData.classification?.status_note && (
+                  <div style={{ marginTop: '0.85rem', fontSize: '0.8rem', color: isRecognized ? 'var(--text-secondary)' : '#fca5a5' }}>
+                    {isRecognized ? '✓' : '⚠️'} <em>{resultData.classification.status_note}</em>
+                  </div>
+                )}
               </div>
 
               {/* 2. Visual Pipeline Viewports (5 Synchronized Stages) */}
@@ -453,7 +507,7 @@ export default function ShapeRecognitionPage() {
                       <div className="result-viewport-card">
                         <div className="viewport-header">
                           <span className="viewport-stage-index">Harmonic Energy Spectrum</span>
-                          <span className="viewport-label">Fourier Descriptors |Z(k)| / |Z(1)|</span>
+                          <span className="viewport-label">Fourier Descriptors |Z(k)| · √k</span>
                         </div>
                         <div className="viewport-canvas" style={{ height: '260px' }}>
                           <img src={resultData.images.spectrum_chart_base64} alt="Spectrum Chart" className="canvas-img" />
@@ -512,7 +566,7 @@ export default function ShapeRecognitionPage() {
                 <div className="controls-placeholder-notice" style={{ marginTop: '1rem', borderColor: 'rgba(56, 189, 248, 0.3)', background: 'rgba(56, 189, 248, 0.05)' }}>
                   <span style={{ color: '#38bdf8', fontWeight: 600 }}>💡 Effect of Coefficient Count (K):</span>
                   <span style={{ color: 'var(--text-secondary)' }}>
-                    At <strong>K = 4</strong>, the inverse DFT reconstructs only the best-fit fundamental ellipse. Increasing to <strong>K = 16</strong> restores polygonal edges and major corners. Higher harmonics (<strong>K = 32–64</strong>) accurately capture re-entrant star apexes and fine boundary lobes.
+                    At <strong>K = 4</strong>, the inverse DFT reconstructs only the best-fit fundamental ellipse. Increasing to <strong>K = 16</strong> restores polygonal edges and major corners (Hexagon, Trapezium, Square, Triangle). Higher harmonics (<strong>K = 32–64</strong>) accurately capture re-entrant star apexes and fine boundary lobes.
                   </span>
                 </div>
               </div>
@@ -523,7 +577,7 @@ export default function ShapeRecognitionPage() {
                   <div>
                     <h3 className="section-card-title">Nearest-Neighbor Prototype Matches</h3>
                     <p className="section-card-sub" style={{ marginBottom: 0 }}>
-                      Ranked Euclidean distances in normalized Fourier descriptor space against the 20-sample prototype library.
+                      Ranked Euclidean distances in normalized Fourier descriptor space against the 35-sample prototype library.
                     </p>
                   </div>
                   <span className="badge-academic">{resultData.parameters?.distance_metric?.toUpperCase()}</span>
@@ -537,7 +591,7 @@ export default function ShapeRecognitionPage() {
                         <th>Prototype Sample</th>
                         <th>Category</th>
                         <th>Descriptor Distance</th>
-                        <th>Similarity Score</th>
+                        <th>Calibrated Match Ratio</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -561,7 +615,7 @@ export default function ShapeRecognitionPage() {
                           <td style={{ fontFamily: 'var(--font-mono)' }}>{m.distance.toFixed(4)}</td>
                           <td>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                              <span style={{ fontWeight: 600, color: m.similarity_pct > 80 ? 'var(--accent-emerald)' : 'var(--accent-amber)' }}>
+                              <span style={{ fontWeight: 600, color: m.similarity_pct > 70 ? 'var(--accent-emerald)' : m.similarity_pct > 0 ? 'var(--accent-amber)' : '#f87171' }}>
                                 {m.similarity_pct}%
                               </span>
                               <div className="metric-progress-wrapper" style={{ width: '80px', margin: 0 }}>
@@ -569,7 +623,7 @@ export default function ShapeRecognitionPage() {
                                   className="metric-progress-fill"
                                   style={{
                                     width: `${m.similarity_pct}%`,
-                                    backgroundColor: m.similarity_pct > 80 ? 'var(--accent-emerald)' : 'var(--accent-amber)'
+                                    backgroundColor: m.similarity_pct > 70 ? 'var(--accent-emerald)' : m.similarity_pct > 0 ? 'var(--accent-amber)' : '#f87171'
                                   }}
                                 ></div>
                               </div>
@@ -582,14 +636,14 @@ export default function ShapeRecognitionPage() {
                 </div>
               </div>
 
-              {/* 5. Independent Test Split Evaluation & Confusion Matrix */}
+              {/* 5. Independent Test Split Evaluation & 7x7 Confusion Matrix */}
               {resultData.evaluation_dataset && (
                 <div className="section-card">
                   <div className="section-card-header">
                     <div>
-                      <h3 className="section-card-title">Independent Test Set Evaluation (Zero Leakage)</h3>
+                      <h3 className="section-card-title">Independent Test Set Evaluation (7 Categories)</h3>
                       <p className="section-card-sub" style={{ marginBottom: 0 }}>
-                        Evaluated across 15 independent test specimens generated with separate rotations, scales, and offsets.
+                        Evaluated across 21 independent test specimens generated with separate rotations, scales, and offsets, plus 4 out-of-distribution unknown shapes.
                       </p>
                     </div>
                     <span className="badge-academic" style={{ borderColor: 'var(--accent-emerald)', color: 'var(--accent-emerald)' }}>
@@ -604,7 +658,7 @@ export default function ShapeRecognitionPage() {
                         {(resultData.evaluation_dataset.macro_precision * 100).toFixed(1)}
                         <span className="metric-unit"> %</span>
                       </span>
-                      <span className="metric-description">Average across all 5 classes</span>
+                      <span className="metric-description">Average across all 7 classes</span>
                     </div>
 
                     <div className="metric-box">
@@ -625,19 +679,21 @@ export default function ShapeRecognitionPage() {
                     </div>
 
                     <div className="metric-box">
-                      <span className="metric-label">Test Split Size</span>
-                      <span className="metric-value">
-                        {resultData.evaluation_dataset.test_samples_count}
-                        <span className="metric-unit"> samples</span>
+                      <span className="metric-label">Outlier Rejection Rate</span>
+                      <span className="metric-value" style={{ color: 'var(--accent-emerald)' }}>
+                        {resultData.evaluation_dataset.unknown_rejection_rate_pct}
+                        <span className="metric-unit"> %</span>
                       </span>
-                      <span className="metric-description">3 independent specimens / class</span>
+                      <span className="metric-description">
+                        {resultData.evaluation_dataset.unknown_samples_tested} foreign shapes tested
+                      </span>
                     </div>
                   </div>
 
-                  {/* Confusion Matrix Table */}
+                  {/* 7x7 Confusion Matrix Table */}
                   <div style={{ marginTop: '1.25rem' }}>
                     <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#fff', marginBottom: '0.5rem' }}>
-                      Confusion Matrix (Rows = Ground Truth, Columns = Predicted)
+                      Confusion Matrix (7x7: Rows = Ground Truth, Columns = Predicted)
                     </div>
                     <div style={{ overflowX: 'auto' }}>
                       <table className="confusion-table">

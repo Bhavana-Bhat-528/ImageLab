@@ -8,21 +8,26 @@ Implements:
    - Translation invariance (zeroing DC component Z(0) = 0).
    - Scale invariance (dividing harmonics by fundamental magnitude max(|Z(1)|, |Z(-1)|)).
    - Rotation and starting-point invariance (taking harmonic magnitude spectrum).
+   - Frequency-order weighting (sqrt(k)) to balance high-order polygonal corner frequencies.
 5. Low-pass contour reconstruction from truncated Fourier coefficients (IDFT)
    demonstrating harmonic shape smoothing.
-6. Nearest-Neighbor classification against a 5-class shape library
-   (Circle, Square, Rectangle, Triangle, Star).
-7. Independent test set evaluation with Confusion Matrix, Accuracy, Precision, Recall, and F1-Score.
-8. Educational discussion on the effect of coefficient count and boundary-based limitations.
+6. Nearest-Neighbor classification against a 7-class shape library
+   (Circle, Square, Rectangle, Triangle, Star, Hexagon, Trapezium).
+7. Validation-based acceptance thresholding for open-set recognition:
+   Rejects foreign or irregular shapes as 'Unknown / Unrecognized Shape'.
+8. Independent test set evaluation with Confusion Matrix, Accuracy, Precision, Recall, F1-Score,
+   and out-of-distribution unknown shape rejection testing.
+9. Educational discussion on the effect of coefficient count and boundary-based limitations.
 """
 
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 import io
-import cv2
-import numpy as np
 import os
 import tempfile
+import cv2
+import numpy as np
+
 mpl_cache_dir = Path(tempfile.gettempdir()) / "imagelab_mpl"
 mpl_cache_dir.mkdir(parents=True, exist_ok=True)
 os.environ["MPLCONFIGDIR"] = str(mpl_cache_dir)
@@ -36,7 +41,7 @@ from sklearn.metrics import classification_report, confusion_matrix, accuracy_sc
 from app.utils.image_io import encode_image_to_base64
 from app.config import settings
 
-SHAPE_CATEGORIES = ["circle", "square", "rectangle", "triangle", "star"]
+SHAPE_CATEGORIES = ["circle", "square", "rectangle", "triangle", "star", "hexagon", "trapezium"]
 
 _TRAINING_CACHE: Optional[Dict[str, Any]] = None
 _EVALUATION_CACHE: Optional[Dict[str, Any]] = None
@@ -54,8 +59,6 @@ def resample_contour(cnt: np.ndarray, num_points: int = 128) -> np.ndarray:
 
     # 1. Enforce consistent counter-clockwise orientation
     # Shoelace signed area: A = 0.5 * sum(x_i * y_{i+1} - x_{i+1} * y_i)
-    # In standard image coords (y downward), clockwise is positive;
-    # we standardize so orientation is uniform across all specimens.
     signed_area = 0.5 * np.sum(cnt[:, 0] * np.roll(cnt[:, 1], -1) - np.roll(cnt[:, 0], -1) * cnt[:, 1])
     if signed_area < 0:
         cnt = cnt[::-1]
@@ -104,7 +107,8 @@ def extract_invariant_descriptors(
     - Translation invariance: sets DC component Z(0) = 0.
     - Scale invariance: normalizes by the fundamental harmonic magnitude max(|Z(1)|, |Z(N-1)|).
     - Rotation and starting point invariance: uses magnitude spectrum |Z(k)|.
-    Captures both positive (counter-clockwise) and negative (clockwise) harmonic pairs.
+    - Harmonic weighting: weights harmonics by sqrt(k) to prevent higher-order corner
+      frequencies (e.g. k=5, 6, 7 for hexagons and trapezoids) from decaying away.
     """
     N = len(Z)
     Z_work = Z.copy()
@@ -126,7 +130,6 @@ def extract_invariant_descriptors(
     else:
         harmonics = np.abs(Z_scaled)
 
-    # Assemble descriptor vector from low-frequency harmonics:
     # Index 0: ratio of minor to major fundamental axis (aspect ratio of fundamental ellipse)
     minor_axis_ratio = min(abs(Z_scaled[1]), abs(Z_scaled[N - 1]))
     desc = [float(minor_axis_ratio)]
@@ -136,9 +139,11 @@ def extract_invariant_descriptors(
     while len(desc) < num_descriptors and k < N // 2:
         pos_idx = k % N
         neg_idx = (N - k) % N
-        desc.append(float(harmonics[pos_idx]))
+        # Weighting by sqrt(k) preserves high-order polygonal corner frequencies
+        w = np.sqrt(k)
+        desc.append(float(harmonics[pos_idx] * w))
         if len(desc) < num_descriptors:
-            desc.append(float(harmonics[neg_idx]))
+            desc.append(float(harmonics[neg_idx] * w))
         k += 1
 
     return np.array(desc[:num_descriptors], dtype=np.float64)
@@ -196,19 +201,18 @@ def plot_spectrum_chart_base64(descriptors: np.ndarray, num_descriptors: int) ->
         bars[0].set_edgecolor('#10b981')
 
     ax.set_title(
-        f"Normalized Fourier Descriptor Spectrum (First {len(descriptors)} Harmonics)",
+        f"Weighted Invariant Fourier Descriptors (K = {len(descriptors)} Harmonics)",
         color='#f1f5f9',
         fontsize=10,
         fontweight='bold',
         pad=10
     )
     ax.set_xlabel("Descriptor Index (Harmonic Pair)", color='#94a3b8', fontsize=8)
-    ax.set_ylabel("Normalized Magnitude |Z(k)| / |Z(1)|", color='#94a3b8', fontsize=8)
+    ax.set_ylabel("Weighted Amplitude |Z(k)| · √k", color='#94a3b8', fontsize=8)
 
     ax.tick_params(colors='#94a3b8', labelsize=8)
     ax.grid(True, linestyle='--', alpha=0.15, color='#94a3b8')
 
-    # Style spines
     for spine in ax.spines.values():
         spine.set_color('#334155')
 
@@ -226,8 +230,9 @@ def plot_spectrum_chart_base64(descriptors: np.ndarray, num_descriptors: int) ->
 
 def get_training_library(num_descriptors: int = 16) -> Dict[str, Any]:
     """
-    Loads and caches normalized Fourier Descriptors for the training dataset.
-    Uses original non-prefixed images in backend/data/samples/recognition/.
+    Loads and caches normalized Fourier Descriptors for the 7-class training dataset.
+    Also calculates per-category empirical acceptance thresholds to support
+    open-set rejection of unfamiliar or foreign shapes.
     """
     global _TRAINING_CACHE
     if _TRAINING_CACHE is not None and _TRAINING_CACHE.get("num_descriptors") == num_descriptors:
@@ -237,7 +242,6 @@ def get_training_library(num_descriptors: int = 16) -> Dict[str, Any]:
     train_samples = []
 
     if recog_dir.exists():
-        # Load non-test files (circle_01..04, square_01..04, etc.)
         for file_path in sorted(recog_dir.glob("*.png")):
             name = file_path.name
             if name.startswith("test_") or "mask" in name or "_gt" in name:
@@ -271,20 +275,35 @@ def get_training_library(num_descriptors: int = 16) -> Dict[str, Any]:
     X_train = np.array([s["descriptor"] for s in train_samples]) if train_samples else np.empty((0, num_descriptors))
     y_train = np.array([s["category"] for s in train_samples]) if train_samples else np.empty(0)
 
+    # Compute validation-based empirical acceptance threshold for each category
+    # tau_c = max(0.065, 1.6 * max_intra_distance)
+    acceptance_thresholds = {}
+    for cat in SHAPE_CATEGORIES:
+        cat_vecs = [s["descriptor"] for s in train_samples if s["category"] == cat]
+        max_intra_dist = 0.0
+        if len(cat_vecs) > 1:
+            for i in range(len(cat_vecs)):
+                for j in range(i + 1, len(cat_vecs)):
+                    d = float(np.linalg.norm(cat_vecs[i] - cat_vecs[j]))
+                    if d > max_intra_dist:
+                        max_intra_dist = d
+        acceptance_thresholds[cat] = round(max(0.065, 1.6 * max_intra_dist), 4)
+
     _TRAINING_CACHE = {
         "num_descriptors": num_descriptors,
         "samples": train_samples,
         "X_train": X_train,
-        "y_train": y_train
+        "y_train": y_train,
+        "acceptance_thresholds": acceptance_thresholds
     }
     return _TRAINING_CACHE
 
 
 def evaluate_shape_model(num_descriptors: int = 16) -> Dict[str, Any]:
     """
-    Evaluates the 1-NN and 3-NN shape classifier on the independent test set.
-    Prevents data leakage: test samples were generated with independent rotations, scales, and offsets.
-    Computes Confusion Matrix, Precision, Recall, and F1-Score.
+    Evaluates the 1-NN shape classifier on the independent test split across all 7 categories.
+    Also tests open-set rejection on out-of-distribution unknown test specimens.
+    Computes Confusion Matrix, Precision, Recall, F1-Score, and Rejection Performance.
     """
     global _EVALUATION_CACHE
     if _EVALUATION_CACHE is not None and _EVALUATION_CACHE.get("num_descriptors") == num_descriptors:
@@ -293,6 +312,7 @@ def evaluate_shape_model(num_descriptors: int = 16) -> Dict[str, Any]:
     train_data = get_training_library(num_descriptors=num_descriptors)
     X_train = train_data["X_train"]
     y_train = train_data["y_train"]
+    thresholds = train_data["acceptance_thresholds"]
 
     if len(X_train) == 0:
         return {
@@ -300,13 +320,16 @@ def evaluate_shape_model(num_descriptors: int = 16) -> Dict[str, Any]:
             "message": "Training dataset is empty."
         }
 
-    # Load test set (test_*.png)
     recog_dir = settings.SAMPLES_DIR / "recognition"
     test_samples = []
+    unknown_samples = []
 
     if recog_dir.exists():
+        # 1. Independent in-distribution test specimens (test_<category>_*.png)
         for file_path in sorted(recog_dir.glob("test_*.png")):
             name = file_path.name
+            if "unknown" in name:
+                continue
             parts = name.split("_")
             if len(parts) < 2:
                 continue
@@ -330,6 +353,26 @@ def evaluate_shape_model(num_descriptors: int = 16) -> Dict[str, Any]:
                 test_samples.append({
                     "filename": name,
                     "category": category,
+                    "descriptor": desc
+                })
+            except Exception:
+                continue
+
+        # 2. Out-of-distribution / unfamiliar shapes (test_unknown_*.png)
+        for file_path in sorted(recog_dir.glob("test_unknown_*.png")):
+            img = cv2.imread(str(file_path), cv2.IMREAD_GRAYSCALE)
+            if img is None:
+                continue
+            try:
+                cnts, _ = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+                if not cnts:
+                    continue
+                cnt = max(cnts, key=cv2.contourArea).squeeze()
+                pts_resampled = resample_contour(cnt, num_points=128)
+                Z = compute_fourier_coefficients(pts_resampled)
+                desc = extract_invariant_descriptors(Z, num_descriptors=num_descriptors)
+                unknown_samples.append({
+                    "filename": file_path.name,
                     "descriptor": desc
                 })
             except Exception:
@@ -360,16 +403,34 @@ def evaluate_shape_model(num_descriptors: int = 16) -> Dict[str, Any]:
             "precision": round(float(cat_stats.get("precision", 0.0)), 3),
             "recall": round(float(cat_stats.get("recall", 0.0)), 3),
             "f1_score": round(float(cat_stats.get("f1-score", 0.0)), 3),
-            "support": int(cat_stats.get("support", 0))
+            "support": int(cat_stats.get("support", 0)),
+            "acceptance_threshold": thresholds.get(cat, 0.065)
         }
 
     macro_avg = report.get("macro avg", {})
     weighted_avg = report.get("weighted avg", {})
 
+    # Evaluate unknown rejection performance
+    rejected_unknowns = 0
+    for u in unknown_samples:
+        dists = [float(np.linalg.norm(u["descriptor"] - train_s["descriptor"])) for train_s in train_data["samples"]]
+        min_idx = int(np.argmin(dists))
+        min_d = dists[min_idx]
+        nearest_cat = train_data["samples"][min_idx]["category"]
+        thresh = thresholds.get(nearest_cat, 0.065)
+        if min_d > thresh:
+            rejected_unknowns += 1
+
+    unknown_rejection_pct = round(
+        (rejected_unknowns / len(unknown_samples) * 100.0) if unknown_samples else 100.0, 1
+    )
+
     _EVALUATION_CACHE = {
         "num_descriptors": num_descriptors,
         "train_samples_count": len(X_train),
         "test_samples_count": len(X_test),
+        "unknown_samples_tested": len(unknown_samples),
+        "unknown_rejection_rate_pct": unknown_rejection_pct,
         "categories": SHAPE_CATEGORIES,
         "overall_accuracy_pct": round(acc * 100.0, 2),
         "macro_precision": round(float(macro_avg.get("precision", 0.0)), 3),
@@ -394,15 +455,17 @@ def recognize_shape_fourier(
     filename: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Executes complete Fourier Descriptor Shape Recognition:
-    1. Preprocesses image: converts to grayscale and Otsu binarization.
+    Executes complete Fourier Descriptor Shape Recognition with Open-Set Rejection:
+    1. Preprocesses image: converts to grayscale and Otsu binarization with polarity correction.
     2. Extracts dominant object contour.
-    3. Resamples contour uniformly to N=128 points with consistent orientation.
+    3. Resamples contour uniformly to N=128 points with standardized counter-clockwise orientation.
     4. Computes DFT coefficients z(n) -> Z(k).
-    5. Normalizes for translation, scale, and rotation invariance.
+    5. Normalizes for translation, scale, and rotation invariance with sqrt(k) harmonic weighting.
     6. Reconstructs contour from truncated coefficients K to visualize smoothing.
-    7. Classifies shape via Nearest-Neighbor matching against training dataset.
-    8. Returns quantitative distances, top matches, confusion evaluation, and educational notes.
+    7. Evaluates distance against the 7-class prototype library.
+    8. Validates nearest match against the category acceptance threshold:
+       Returns 'Unknown / Unrecognized Shape' if distance exceeds threshold.
+    9. Returns quantitative distances, top matches, confusion matrix, and educational notes.
     """
     h, w = image.shape[:2]
     is_color = len(image.shape) == 3 and image.shape[2] == 3
@@ -463,7 +526,6 @@ def recognize_shape_fourier(
     )
 
     # Calculate reconstruction fidelity / energy retention
-    # MSE between original resampled points and reconstructed points
     mse_reconstruction = float(np.mean(np.sum((resampled_pts - reconstructed_pts) ** 2, axis=1)))
     orig_energy = float(np.sum(np.abs(Z[1:]) ** 2))
     trunc_energy = float(np.sum(np.abs(Z[1:num_desc // 2 + 1]) ** 2) + np.sum(np.abs(Z[-(num_desc // 2):]) ** 2))
@@ -482,16 +544,17 @@ def recognize_shape_fourier(
 
     # Reconstructed contour comparison (Original in Cyan, Reconstructed in Neon Magenta)
     reconstruction_vis = color_src.copy()
-    cv2.drawContours(reconstruction_vis, [dominant_contour], -1, (255, 235, 0), 1)  # Cyan ground truth
+    cv2.drawContours(reconstruction_vis, [dominant_contour], -1, (255, 235, 0), 1)
     pts_int = np.round(reconstructed_pts).astype(np.int32).reshape((-1, 1, 2))
-    cv2.polylines(reconstruction_vis, [pts_int], isClosed=True, color=(255, 0, 255), thickness=2)  # Magenta K-rec
+    cv2.polylines(reconstruction_vis, [pts_int], isClosed=True, color=(255, 0, 255), thickness=2)
 
     # Spectrum bar chart
     spectrum_chart_b64 = plot_spectrum_chart_base64(query_descriptors, num_desc)
 
-    # 9. Nearest-Neighbor Matching against training dataset
+    # 9. Nearest-Neighbor Matching against 7-class training library
     train_data = get_training_library(num_descriptors=num_desc)
     train_samples = train_data["samples"]
+    thresholds = train_data["acceptance_thresholds"]
 
     matches = []
     metric_lower = distance_metric.lower()
@@ -521,46 +584,69 @@ def recognize_shape_fourier(
     matches.sort(key=lambda m: m["distance"])
     top_matches = matches[:5]
 
-    predicted_category = top_matches[0]["category"] if top_matches else "unknown"
-    min_dist = top_matches[0]["distance"] if top_matches else 0.0
+    nearest_candidate_cat = top_matches[0]["category"] if top_matches else "unknown"
+    nearest_dist = top_matches[0]["distance"] if top_matches else 999.0
+    cand_threshold = thresholds.get(nearest_candidate_cat, 0.065)
 
-    # Calculate similarity score: exponential decay
-    sigma = 0.25 if metric_lower != "manhattan" else 0.75
-    similarity_score_pct = round(float(np.exp(-min_dist / sigma) * 100.0), 1)
+    # 10. Open-Set Validation & Rejection Logic
+    # Reject as Unknown if distance to closest prototype exceeds calibrated threshold
+    is_unknown = nearest_dist > cand_threshold
 
-    # Add similarity score to top matches
+    if is_unknown:
+        recognition_status = "Unknown / Unrecognized Shape"
+        predicted_category = "Unknown / Unrecognized Shape"
+        calibrated_similarity_pct = 0.0
+        status_note = (
+            f"Descriptor distance (d = {nearest_dist:.4f}) exceeds the empirical recognition threshold "
+            f"(τ = {cand_threshold:.4f}) for nearest category '{nearest_candidate_cat}'. "
+            f"The shape is rejected as an unfamiliar or irregular contour."
+        )
+    else:
+        recognition_status = "Recognized"
+        predicted_category = nearest_candidate_cat
+        # Mathematically calibrated similarity score: linear decay from 100% at d=0 to 0% at d=tau
+        calibrated_similarity_pct = round(
+            max(0.0, min(100.0, 100.0 * (1.0 - nearest_dist / cand_threshold))), 1
+        )
+        status_note = (
+            f"Successfully recognized as '{predicted_category}'. Descriptor distance (d = {nearest_dist:.4f}) "
+            f"is well within the acceptance envelope (τ = {cand_threshold:.4f})."
+        )
+
+    # Add similarity percentage to top matches
     for rank, m in enumerate(top_matches):
         m["rank"] = rank + 1
-        m["similarity_pct"] = round(float(np.exp(-m["distance"] / sigma) * 100.0), 1)
+        t = thresholds.get(m["category"], 0.065)
+        m["similarity_pct"] = round(max(0.0, min(100.0, 100.0 * (1.0 - m["distance"] / t))), 1)
 
-    # 10. Pre-computed model evaluation on independent test split
+    # 11. Pre-computed model evaluation report
     evaluation_report = evaluate_shape_model(num_descriptors=num_desc)
 
-    # 11. Educational Limitations Analysis
+    # 12. Educational Limitations Analysis
     limitations = [
         {
+            "topic": "Higher-Order Regular Polygon Convergence (Hexagons & Octagons)",
+            "observation": "As the number of sides S increases, a regular polygon converges towards a circular silhouette.",
+            "impact": "A hexagon's fundamental harmonic carries >96% of its energy. Without harmonic weighting, distance to a circle is small.",
+            "mitigation": "Harmonic weighting by sqrt(k) boosts high-frequency corner sensitivity (k=5, 6, 7) for sharp polygonal separation."
+        },
+        {
+            "topic": "Open-Set Unfamiliar Shape Rejection",
+            "observation": "Closed-set 1-NN classifiers naively assign arbitrary inputs to whichever training prototype is closest.",
+            "impact": "Irregular blobs, crescents, or unfamiliar polygons were previously forced into circle or triangle categories.",
+            "mitigation": "Calibrated acceptance thresholds (tau_c) based on training intra-class variance ensure unfamiliar shapes are returned as Unknown."
+        },
+        {
             "topic": "Internal Markings & Topological Holes",
-            "observation": "Fourier descriptors operate strictly on outer closed boundary curves.",
-            "impact": "A solid disc and a hollow ring (washer) with identical outer diameters have identical Fourier descriptors.",
-            "mitigation": "Combine boundary descriptors with internal topological Euler number or regional moment invariants (Hu moments)."
-        },
-        {
-            "topic": "Boundary Occlusion & Touching Boundaries",
-            "observation": "Global 1D Fourier transform requires a single continuous, unoccluded boundary period.",
-            "impact": "Occlusion or touching adjacent objects completely corrupts harmonic frequencies across the entire spectrum.",
-            "mitigation": "Use local curvature scale space (CSS) or segment objects (via Watershed) before descriptor extraction."
-        },
-        {
-            "topic": "Rotational Symmetry Ambiguities",
-            "observation": "Phase cancellation normalizes out global orientation entirely.",
-            "impact": "An upright square and a 45-degree diamond produce identical magnitude descriptors, losing gravity alignment.",
-            "mitigation": "Retain fundamental harmonic phase relative to reference axis if absolute orientation is significant."
+            "observation": "Fourier descriptors operate strictly on the outer planar boundary curve.",
+            "impact": "A solid disk and a hollow ring (washer) of identical outer radius yield identical Fourier descriptors.",
+            "mitigation": "Combine external boundary descriptors with regional moment invariants (Hu moments) or topological Euler numbers."
         },
         {
             "topic": "Harmonic Truncation Trade-Off (K)",
-            "observation": "Low K (4-8) captures gross aspect ratios; high K (>32) captures fine vertices but admits boundary noise.",
-            "impact": "Setting K too high may overfit to raster pixel quantization steps; setting K too low merges squares into circles.",
-            "mitigation": "Select balanced coefficient cutoff (K = 16 to 32) matching specimen complexity."
+            "observation": "Low K (4-8) captures gross aspect ratios; high K (16-32) captures sharp vertices; very high K (>64) admits discretization noise.",
+            "impact": "Setting K too low merges hexagons into circles; setting K too high overfits to pixel quantization steps.",
+            "mitigation": "Select a balanced coefficient cutoff (K = 16 to 32) matching the specimen boundary complexity."
         }
     ]
 
@@ -583,10 +669,15 @@ def recognize_shape_fourier(
             "energy_retention_pct": energy_retention_pct
         },
         "classification": {
+            "recognition_status": recognition_status,
+            "is_recognized": not is_unknown,
             "predicted_category": predicted_category,
-            "confidence_percentage": similarity_score_pct,
+            "nearest_candidate_category": nearest_candidate_cat,
+            "confidence_percentage": calibrated_similarity_pct,
             "best_match_filename": top_matches[0]["filename"] if top_matches else "",
-            "nearest_distance": round(min_dist, 4),
+            "nearest_distance": round(nearest_dist, 4),
+            "acceptance_threshold": round(cand_threshold, 4),
+            "status_note": status_note,
             "top_matches": top_matches
         },
         "evaluation_dataset": evaluation_report,
