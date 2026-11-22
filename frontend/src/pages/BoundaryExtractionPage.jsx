@@ -8,24 +8,25 @@ import ResultsAreaPlaceholder from '../components/ResultsAreaPlaceholder';
 
 const BOUNDARY_PRESETS = [
   {
-    filename: 'zebra_savanna.png',
-    label: 'Zebra in Savanna',
-    category: 'High Contrast Animal Pattern',
-    description: 'Distinctive striped animal boundary against natural grassland background.'
+    filename: 'zebra.jpg',
+    label: 'Zebra (Equus quagga)',
+    category: 'High-Contrast Animal Stripes',
+    description: 'Distinctive striped coat pattern against grassland background. Tests morphological boundary connectivity.'
   },
   {
-    filename: 'elephant_safari.png',
-    label: 'African Elephant',
+    filename: 'elephant.jpg',
+    label: 'African Bush Elephant',
     category: 'Large Mammal Silhouette',
-    description: 'Complex outer contour including curved trunk, large ears, and tusks.'
+    description: 'Complex outer contour including curved trunk, tusks, and broad ear geometries.'
   },
   {
-    filename: 'dog_canine.png',
-    label: 'Domestic Canine (Dog)',
-    category: 'Furred Animal Contour',
-    description: 'Fine fur boundary contour requiring precise structuring element tuning.'
+    filename: 'dog.jpg',
+    label: 'Canine Portrait (Dog)',
+    category: 'Domestic Animal Contour',
+    description: 'Smooth animal foreground. Ideal for evaluating structuring element size impact (3x3 to 15x15).'
   }
 ];
+
 
 export default function BoundaryExtractionPage() {
   const [selectedImage, setSelectedImage] = useState(null);

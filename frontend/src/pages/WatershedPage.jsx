@@ -8,24 +8,31 @@ import ResultsAreaPlaceholder from '../components/ResultsAreaPlaceholder';
 
 const WATERSHED_PRESETS = [
   {
-    filename: 'microscopic_cells_cluster.png',
-    label: 'Microscopic Cell Clusters',
-    category: 'Touching Biological Cells',
-    description: 'Confluent cell culture with adjacent cell boundaries requiring watershed separation.'
+    filename: '01_human_mitosis.png',
+    label: 'Human Mitosis Cells',
+    category: 'Dividing Biological Cells',
+    description: 'Microscopic human cancer cells undergoing mitosis with touching nuclear boundaries.'
   },
   {
-    filename: 'blood_smear_rbc.png',
-    label: 'Blood Smear Erythrocytes',
-    category: 'Overlapping Red Blood Cells',
-    description: 'High-density peripheral blood smear with touching disc-shaped cells.'
+    filename: '02_cell_culture.png',
+    label: 'Fluorescent Cell Culture',
+    category: 'Confluent Cells',
+    description: 'Adjacent fluorescent cell membranes requiring distance transform marker separation.'
   },
   {
-    filename: 'fluorescent_nuclei.png',
-    label: 'DAPI Fluorescent Nuclei',
-    category: 'Fluorescence Microscopy',
-    description: 'High contrast fluorescent nuclear markers with tight spatial aggregation.'
+    filename: '03_protein_transport_nuclei.png',
+    label: 'Nuclear Translocation Assay',
+    category: 'Clustered Nuclei',
+    description: 'Compact spatial aggregation of cell nuclei with varying intensities.'
+  },
+  {
+    filename: '04_overlapping_coins.png',
+    label: 'Overlapping Particles Benchmark',
+    category: 'Touching Convex Objects',
+    description: 'Classic DIP benchmark for evaluating Euclidean distance transform watershed boundaries.'
   }
 ];
+
 
 export default function WatershedPage() {
   const [selectedImage, setSelectedImage] = useState(null);

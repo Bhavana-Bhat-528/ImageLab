@@ -8,36 +8,43 @@ import ResultsAreaPlaceholder from '../components/ResultsAreaPlaceholder';
 
 const ENHANCEMENT_PRESETS = [
   {
-    filename: 'low_contrast_scene.png',
-    label: 'Low Contrast Landscape',
+    filename: '01_low_contrast.png',
+    label: 'Low Contrast Scene',
     category: 'Contrast Deficient',
-    description: 'Under-utilized dynamic range with narrow intensity histogram clustering.'
+    description: 'Under-utilized dynamic range restricted to [95, 145]. Tests contrast stretching & CLAHE.'
   },
   {
-    filename: 'dark_underexposed.png',
-    label: 'Underexposed Portrait',
+    filename: '02_dark_underexposed.png',
+    label: 'Underexposed Image',
     category: 'Low Brightness',
-    description: 'Low mean pixel intensity requiring gamma expansion or power-law transformation.'
+    description: 'Low mean pixel intensity with clipped shadows. Tests gamma expansion (γ < 1.0).'
   },
   {
-    filename: 'washed_out_overexposed.png',
-    label: 'Overexposed Outdoor',
+    filename: '03_bright_overexposed.png',
+    label: 'Overexposed Image',
     category: 'High Brightness',
-    description: 'Saturated highlights requiring compressive gamma and histogram equalization.'
+    description: 'Saturated highlights. Tests compressive gamma and histogram equalization.'
   },
   {
-    filename: 'blurry_specimen.png',
-    label: 'Blurry Specimen',
-    category: 'Spatial High Frequency Loss',
-    description: 'Low edge gradient requiring unsharp masking and high-boost spatial filtering.'
+    filename: '04_gaussian_noise.png',
+    label: 'Gaussian Noise Image',
+    category: 'Sensor Noise',
+    description: 'Zero-mean additive Gaussian noise (σ=28). Tests spatial Gaussian smoothing.'
   },
   {
-    filename: 'noisy_radiograph.png',
-    label: 'Noisy Radiograph',
-    category: 'Salt & Pepper / Gaussian Noise',
-    description: 'Degraded SNR requiring median or bilateral spatial smoothing prior to sharpening.'
+    filename: '05_salt_and_pepper_noise.png',
+    label: 'Salt & Pepper Noise',
+    category: 'Impulse Noise',
+    description: 'High-frequency impulse noise (p=0.05). Tests non-linear median filtering.'
+  },
+  {
+    filename: '06_uneven_illumination.png',
+    label: 'Uneven Illumination',
+    category: 'Non-Uniform Field',
+    description: 'Non-uniform background lighting gradient across document.'
   }
 ];
+
 
 export default function EnhancementPage() {
   const [selectedImage, setSelectedImage] = useState(null);

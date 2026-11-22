@@ -3,45 +3,101 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from app.config import settings
 
-router = APIRouter(prefix="/samples", tags=["Sample Images"])
+router = APIRouter(prefix="/samples", tags=["Sample Datasets"])
 
-
-MODULE_DIR_MAP = {
+CATEGORY_DIR_MAP = {
     "enhancement": "enhancement",
     "boundary": "boundary",
     "boundary-extraction": "boundary",
     "watershed": "watershed",
-    "fourier": "fourier",
-    "shape-recognition": "fourier",
+    "recognition": "recognition",
+    "shape-recognition": "recognition",
+    "fourier": "recognition",
 }
 
+VALID_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
 
-@router.get("/{module_name}")
-async def list_sample_images(module_name: str):
+
+@router.get("")
+async def list_all_sample_categories():
     """
-    Returns the list of local sample images available for a given module.
+    Lists all available sample dataset categories and their image counts.
     """
-    dir_name = MODULE_DIR_MAP.get(module_name, module_name)
-    module_dir = settings.SAMPLES_DIR / dir_name
-    if not module_dir.exists() or not module_dir.is_dir():
-        return {"module": module_name, "samples": []}
-    
-    valid_exts = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
+    categories = ["enhancement", "boundary", "watershed", "recognition"]
+    result = {}
+    for cat in categories:
+        cat_dir = settings.SAMPLES_DIR / cat
+        if cat_dir.exists() and cat_dir.is_dir():
+            files = [
+                f.name for f in cat_dir.iterdir()
+                if f.is_file() and f.suffix.lower() in VALID_EXTENSIONS
+            ]
+            result[cat] = {
+                "category": cat,
+                "count": len(files),
+                "samples": sorted(files)
+            }
+        else:
+            result[cat] = {"category": cat, "count": 0, "samples": []}
+    return {"status": "success", "categories": result}
+
+
+@router.get("/{category}")
+async def list_sample_images_by_category(category: str):
+    """
+    Lists all available benchmark sample images for a given category.
+    """
+    resolved_dir = CATEGORY_DIR_MAP.get(category.lower())
+    if not resolved_dir:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Unknown category '{category}'. Available categories: enhancement, boundary, watershed, recognition."
+        )
+
+    cat_dir = settings.SAMPLES_DIR / resolved_dir
+    if not cat_dir.exists() or not cat_dir.is_dir():
+        return {"category": category, "count": 0, "samples": []}
+
     files = [
-        f.name for f in module_dir.iterdir()
-        if f.is_file() and f.suffix.lower() in valid_exts
+        f.name for f in cat_dir.iterdir()
+        if f.is_file() and f.suffix.lower() in VALID_EXTENSIONS
     ]
-    return {"module": module_name, "samples": sorted(files)}
+    return {
+        "status": "success",
+        "category": category,
+        "resolved_category": resolved_dir,
+        "count": len(files),
+        "samples": sorted(files)
+    }
 
 
-@router.get("/{module_name}/{filename}")
-async def get_sample_image(module_name: str, filename: str):
+@router.get("/{category}/{filename}")
+async def get_sample_image(category: str, filename: str):
     """
-    Serves a specific local sample image file.
+    Serves a specific sample benchmark image file from the local repository.
     """
-    dir_name = MODULE_DIR_MAP.get(module_name, module_name)
-    file_path = settings.SAMPLES_DIR / dir_name / filename
+    resolved_dir = CATEGORY_DIR_MAP.get(category.lower())
+    if not resolved_dir:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Unknown category '{category}'."
+        )
+
+    file_path = settings.SAMPLES_DIR / resolved_dir / filename
     if not file_path.exists() or not file_path.is_file():
-        raise HTTPException(status_code=404, detail="Sample image not found")
-    return FileResponse(file_path)
+        raise HTTPException(
+            status_code=404,
+            detail=f"Sample image '{filename}' not found in category '{category}'."
+        )
 
+    # Determine media type
+    ext = file_path.suffix.lower()
+    media_type = "image/png"
+    if ext in (".jpg", ".jpeg"):
+        media_type = "image/jpeg"
+    elif ext == ".bmp":
+        media_type = "image/bmp"
+    elif ext in (".tif", ".tiff"):
+        media_type = "image/tiff"
+
+    return FileResponse(file_path, media_type=media_type)

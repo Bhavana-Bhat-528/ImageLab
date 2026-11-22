@@ -8,6 +8,7 @@ from app.api.routes_boundary import router as boundary_router
 from app.api.routes_watershed import router as watershed_router
 from app.api.routes_fourier import router as fourier_router
 from app.api.routes_samples import router as samples_router
+from app.api.routes_upload import router as upload_router
 
 app = FastAPI(
     title="ImageLab API",
@@ -53,6 +54,7 @@ app.include_router(boundary_router, prefix="/api")
 app.include_router(watershed_router, prefix="/api")
 app.include_router(fourier_router, prefix="/api")
 app.include_router(samples_router, prefix="/api")
+app.include_router(upload_router, prefix="/api")
 
 # URL alias routes to match frontend route naming
 app.include_router(boundary_router, prefix="/api/boundary-extraction")

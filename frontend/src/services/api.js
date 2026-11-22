@@ -61,6 +61,20 @@ export async function processWatershed(formData) {
   return response.json();
 }
 
+export async function validateUploadedImage(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await fetch(`${API_BASE_URL}/upload/validate`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Upload validation failed (${response.status})`);
+  }
+  return response.json();
+}
+
 export async function processFourier(formData) {
   const response = await fetch(`${API_BASE_URL}/fourier/process`, {
     method: 'POST',

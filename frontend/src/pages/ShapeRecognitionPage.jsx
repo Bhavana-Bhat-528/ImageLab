@@ -8,36 +8,37 @@ import ResultsAreaPlaceholder from '../components/ResultsAreaPlaceholder';
 
 const SHAPE_PRESETS = [
   {
-    filename: 'aircraft_silhouette.png',
-    label: 'Category 1: Aeroplane',
-    category: 'Aircraft Silhouette',
-    description: 'High aspect ratio fuselage with wing and tail fin planar protrusions.'
+    filename: 'circle_01.png',
+    label: 'Category 1: Circle',
+    category: 'Zero-Eccentricity Contour',
+    description: 'Fundamental circular harmonic; tests rotational invariance of Fourier magnitude spectrum.'
   },
   {
-    filename: 'coffee_mug_contour.png',
-    label: 'Category 2: Mug / Cup',
-    category: 'Household Objects',
-    description: 'Cylindrical silhouette with asymmetrical handle loop topology.'
+    filename: 'square_01.png',
+    label: 'Category 2: Square',
+    category: '4-Fold Rotational Symmetry',
+    description: 'Regular 4-sided polygon with prominent 4th harmonic frequency component.'
   },
   {
-    filename: 'wrench_tool_shape.png',
-    label: 'Category 3: Hand Tool (Wrench)',
-    category: 'Mechanical Tools',
-    description: 'Elongated shaft with dual concave gripping jaws.'
+    filename: 'triangle_01.png',
+    label: 'Category 3: Triangle',
+    category: '3-Fold Vertex Distribution',
+    description: 'Equilateral upright triangle; tests harmonic distribution across acute vertices.'
   },
   {
-    filename: 'star_geometric_polygon.png',
-    label: 'Category 4: Star Polygon',
-    category: 'Geometric Shapes',
-    description: 'Symmetric five-pointed star with sharp acute vertices.'
+    filename: 'rectangle_01.png',
+    label: 'Category 4: Rectangle',
+    category: '2-Fold Aspect Ratio Asymmetry',
+    description: 'Horizontal 2:1 rectangle; cleanly differentiated from square via aspect ratio harmonics.'
   },
   {
-    filename: 'sedan_car_outline.png',
-    label: 'Category 5: Automobile',
-    category: 'Vehicles',
-    description: 'Three-box vehicle silhouette with wheel arches and windshield curve.'
+    filename: 'star_01.png',
+    label: 'Category 5: Star',
+    category: 'Re-Entrant Multi-Vertex Polygon',
+    description: 'Classic 5-point star with alternating outer and inner vertex frequencies.'
   }
 ];
+
 
 export default function ShapeRecognitionPage() {
   const [selectedImage, setSelectedImage] = useState(null);
