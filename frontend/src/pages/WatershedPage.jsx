@@ -1,92 +1,213 @@
 import React, { useState } from 'react';
-import ImageDropzone from '../components/ImageDropzone';
-import MetricCard from '../components/MetricCard';
+import Breadcrumbs from '../components/Breadcrumbs';
+import PageHeader from '../components/PageHeader';
+import ImageUploadSection from '../components/ImageUploadSection';
+import SampleSelector from '../components/SampleSelector';
+import ProcessingControlsPlaceholder from '../components/ProcessingControlsPlaceholder';
+import ResultsAreaPlaceholder from '../components/ResultsAreaPlaceholder';
+
+const WATERSHED_PRESETS = [
+  {
+    filename: 'microscopic_cells_cluster.png',
+    label: 'Microscopic Cell Clusters',
+    category: 'Touching Biological Cells',
+    description: 'Confluent cell culture with adjacent cell boundaries requiring watershed separation.'
+  },
+  {
+    filename: 'blood_smear_rbc.png',
+    label: 'Blood Smear Erythrocytes',
+    category: 'Overlapping Red Blood Cells',
+    description: 'High-density peripheral blood smear with touching disc-shaped cells.'
+  },
+  {
+    filename: 'fluorescent_nuclei.png',
+    label: 'DAPI Fluorescent Nuclei',
+    category: 'Fluorescence Microscopy',
+    description: 'High contrast fluorescent nuclear markers with tight spatial aggregation.'
+  }
+];
 
 export default function WatershedPage() {
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [previewUrl, setPreviewUrl] = useState(null);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [activeSampleFilename, setActiveSampleFilename] = useState(null);
+  const [isExecuting, setIsExecuting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState(null);
+
+  // Parameter controls state
   const [thresholdVal, setThresholdVal] = useState(128);
   const [minDistance, setMinDistance] = useState(15);
+  const [distTransformMask, setDistTransformMask] = useState(5);
+  const [compactness, setCompactness] = useState(0.0);
 
-  const handleImageSelect = (file) => {
-    setSelectedFile(file);
-    setPreviewUrl(URL.createObjectURL(file));
+  const handleImageSelected = (imageData) => {
+    setSelectedImage(imageData);
+    setActiveSampleFilename(null);
+    setErrorMessage(null);
+  };
+
+  const handleSelectSample = (sampleData) => {
+    setSelectedImage(sampleData);
+    setActiveSampleFilename(sampleData.sampleFilename);
+    setErrorMessage(null);
+  };
+
+  const handleClearImage = () => {
+    setSelectedImage(null);
+    setActiveSampleFilename(null);
+    setErrorMessage(null);
+  };
+
+  const handleExecute = () => {
+    if (!selectedImage) return;
+    setIsExecuting(true);
+    setErrorMessage(null);
+    setTimeout(() => {
+      setIsExecuting(false);
+    }, 1200);
+  };
+
+  const handleReset = () => {
+    setThresholdVal(128);
+    setMinDistance(15);
+    setDistTransformMask(5);
+    setCompactness(0.0);
+    setErrorMessage(null);
   };
 
   return (
-    <div>
-      <div className="page-header">
-        <h1 className="page-title">Morphological Watershed Segmentation</h1>
-        <p className="page-desc">
-          Separation of touching microscopic cells via Otsu binarization, Euclidean distance transform, local peak marker extraction, and marker-controlled watershed segmentation.
-        </p>
-      </div>
+    <div className="module-page-container">
+      <Breadcrumbs items={[{ label: 'Watershed Segmentation' }]} />
 
-      <div className="lab-layout">
-        <div className="controls-panel">
-          <h2 style={{ fontSize: '1.1rem', marginBottom: '1rem', color: '#fff' }}>Input & Parameters</h2>
-          
-          <ImageDropzone 
-            onImageSelect={handleImageSelect}
-            previewUrl={previewUrl}
+      <PageHeader
+        moduleNumber="3"
+        title="Watershed Segmentation"
+        description="Separates clustered and touching cells in microscopic imaging using Otsu binarization, Euclidean distance transformation, marker extraction, and marker-controlled watershed segmentation. Estimates individual cell counts and region geometry."
+        tags={['Cell Segmentation', 'Distance Transform', 'Marker Generation', 'Watershed Transform']}
+        accentColor="purple"
+      />
+
+      <div className="module-layout-grid">
+        {/* Left Column: Input and Parameters */}
+        <div className="layout-sidebar">
+          <ImageUploadSection
+            selectedFile={selectedImage?.file}
+            imagePreview={selectedImage?.previewUrl}
+            imageMeta={selectedImage?.meta}
+            onImageSelected={handleImageSelected}
+            onClearImage={handleClearImage}
             label="Upload Microscopic Image"
+            hint="Microscopic specimen images with touching cells (min 3 real-world test sets)"
+            disabled={isExecuting}
           />
 
-          <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div>
-              <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.25rem' }}>
-                Binarization Threshold: {thresholdVal}
-              </label>
-              <input 
-                type="range" 
-                min="0" 
-                max="255" 
-                value={thresholdVal} 
+          <SampleSelector
+            moduleName="watershed"
+            presets={WATERSHED_PRESETS}
+            onSelectSample={handleSelectSample}
+            activeSampleFilename={activeSampleFilename}
+          />
+
+          <ProcessingControlsPlaceholder
+            title="3. Watershed Parameters"
+            hasImage={Boolean(selectedImage)}
+            isExecuting={isExecuting}
+            onExecute={handleExecute}
+            onReset={handleReset}
+            executeLabel="Run Watershed Segmentation"
+          >
+            <div className="control-group">
+              <div className="control-label-row">
+                <label className="control-label">Binarization Threshold</label>
+                <span className="control-value-badge">{thresholdVal}</span>
+              </div>
+              <input
+                type="range"
+                className="control-range"
+                min="0"
+                max="255"
+                value={thresholdVal}
                 onChange={(e) => setThresholdVal(parseInt(e.target.value, 10))}
-                style={{ width: '100%' }}
+                disabled={isExecuting}
               />
+              <div className="range-bounds">
+                <span>0 (Dark Cells)</span>
+                <span>128</span>
+                <span>255 (Bright Cells)</span>
+              </div>
             </div>
 
-            <div>
-              <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.25rem' }}>
-                Marker Min Distance: {minDistance} px
-              </label>
-              <input 
-                type="range" 
-                min="5" 
-                max="50" 
-                value={minDistance} 
+            <div className="control-group">
+              <div className="control-label-row">
+                <label className="control-label">Marker Peak Min Distance</label>
+                <span className="control-value-badge">{minDistance} px</span>
+              </div>
+              <input
+                type="range"
+                className="control-range"
+                min="5"
+                max="50"
+                value={minDistance}
                 onChange={(e) => setMinDistance(parseInt(e.target.value, 10))}
-                style={{ width: '100%' }}
+                disabled={isExecuting}
               />
+              <span className="control-help">
+                Prevents over-segmentation by suppressing secondary local maxima.
+              </span>
             </div>
 
-            <button className="btn btn-primary" style={{ marginTop: '0.5rem' }} disabled={!selectedFile}>
-              Run Watershed Segmentation
-            </button>
-          </div>
+            <div className="control-group">
+              <label className="control-label">Distance Transform Mask</label>
+              <select
+                className="control-select"
+                value={distTransformMask}
+                onChange={(e) => setDistTransformMask(parseInt(e.target.value, 10))}
+                disabled={isExecuting}
+              >
+                <option value={3}>3 × 3 Euclidean Metric (cv2.DIST_L2)</option>
+                <option value={5}>5 × 5 Accurate Euclidean Metric</option>
+              </select>
+            </div>
+
+            <div className="control-group">
+              <div className="control-label-row">
+                <label className="control-label">Watershed Compactness</label>
+                <span className="control-value-badge">{compactness.toFixed(2)}</span>
+              </div>
+              <input
+                type="range"
+                className="control-range"
+                min="0.0"
+                max="1.0"
+                step="0.05"
+                value={compactness}
+                onChange={(e) => setCompactness(parseFloat(e.target.value))}
+                disabled={isExecuting}
+              />
+            </div>
+          </ProcessingControlsPlaceholder>
         </div>
 
-        <div className="preview-panel">
-          <h2 style={{ fontSize: '1.1rem', marginBottom: '1rem', color: '#fff' }}>Segmentation Pipeline</h2>
-          
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', flex: 1, minHeight: '240px' }}>
-            <div style={{ background: '#0f172a', border: '1px dashed var(--border-color)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', textAlign: 'center', padding: '0.5rem' }}>
-              {previewUrl ? <img src={previewUrl} alt="Original" style={{ maxWidth: '100%', maxHeight: '200px', objectFit: 'contain' }} /> : 'Original Microscopic'}
-            </div>
-            <div style={{ background: '#0f172a', border: '1px dashed var(--border-color)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', textAlign: 'center', padding: '0.5rem' }}>
-              Distance Map & Markers
-            </div>
-            <div style={{ background: '#0f172a', border: '1px dashed var(--border-color)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', textAlign: 'center', padding: '0.5rem' }}>
-              Watershed Labeled Output
-            </div>
-          </div>
-
-          <div style={{ marginTop: '1.5rem', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
-            <MetricCard label="Estimated Cell Count" value="--" description="Segmented individual cell regions" />
-            <MetricCard label="Mean Cell Area" value="--" unit="px²" description="Average size per cell" />
-            <MetricCard label="Overlap Ratio" value="--" description="Touching boundary ratio" />
-          </div>
+        {/* Right Column: Visualizations & Quantitative Results */}
+        <div className="layout-main">
+          <ResultsAreaPlaceholder
+            hasImage={Boolean(selectedImage)}
+            imagePreview={selectedImage?.previewUrl}
+            isExecuting={isExecuting}
+            errorMessage={errorMessage}
+            onDismissError={() => setErrorMessage(null)}
+            moduleName="Watershed Segmentation"
+            resultViews={[
+              { label: "Original Microscopic Image", key: "original" },
+              { label: "Distance Transform & Markers", key: "distance_map" },
+              { label: "Watershed Labeled Cells", key: "labeled_cells" }
+            ]}
+            metrics={[
+              { label: "Estimated Cell Count", value: null, description: "Total segmented individual cell regions" },
+              { label: "Mean Cell Area", value: null, unit: "px²", description: "Average segmented footprint" },
+              { label: "Separated Touching Boundaries", value: null, description: "Resolved touching junction lines" },
+              { label: "Segmentation Confidence", value: null, unit: "%", description: "Marker-to-basin consistency" }
+            ]}
+          />
         </div>
       </div>
     </div>

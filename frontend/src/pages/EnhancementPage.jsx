@@ -1,106 +1,230 @@
 import React, { useState } from 'react';
-import ImageDropzone from '../components/ImageDropzone';
-import MetricCard from '../components/MetricCard';
+import Breadcrumbs from '../components/Breadcrumbs';
+import PageHeader from '../components/PageHeader';
+import ImageUploadSection from '../components/ImageUploadSection';
+import SampleSelector from '../components/SampleSelector';
+import ProcessingControlsPlaceholder from '../components/ProcessingControlsPlaceholder';
+import ResultsAreaPlaceholder from '../components/ResultsAreaPlaceholder';
+
+const ENHANCEMENT_PRESETS = [
+  {
+    filename: 'low_contrast_scene.png',
+    label: 'Low Contrast Landscape',
+    category: 'Contrast Deficient',
+    description: 'Under-utilized dynamic range with narrow intensity histogram clustering.'
+  },
+  {
+    filename: 'dark_underexposed.png',
+    label: 'Underexposed Portrait',
+    category: 'Low Brightness',
+    description: 'Low mean pixel intensity requiring gamma expansion or power-law transformation.'
+  },
+  {
+    filename: 'washed_out_overexposed.png',
+    label: 'Overexposed Outdoor',
+    category: 'High Brightness',
+    description: 'Saturated highlights requiring compressive gamma and histogram equalization.'
+  },
+  {
+    filename: 'blurry_specimen.png',
+    label: 'Blurry Specimen',
+    category: 'Spatial High Frequency Loss',
+    description: 'Low edge gradient requiring unsharp masking and high-boost spatial filtering.'
+  },
+  {
+    filename: 'noisy_radiograph.png',
+    label: 'Noisy Radiograph',
+    category: 'Salt & Pepper / Gaussian Noise',
+    description: 'Degraded SNR requiring median or bilateral spatial smoothing prior to sharpening.'
+  }
+];
 
 export default function EnhancementPage() {
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [previewUrl, setPreviewUrl] = useState(null);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [activeSampleFilename, setActiveSampleFilename] = useState(null);
+  const [isExecuting, setIsExecuting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState(null);
+
+  // Parameter controls state (placeholders for algorithm tuning)
   const [gamma, setGamma] = useState(1.2);
   const [kernelSize, setKernelSize] = useState(3);
   const [sharpenStrength, setSharpenStrength] = useState(1.0);
+  const [transformationType, setTransformationType] = useState('auto');
 
-  const handleImageSelect = (file) => {
-    setSelectedFile(file);
-    setPreviewUrl(URL.createObjectURL(file));
+  const handleImageSelected = (imageData) => {
+    setSelectedImage(imageData);
+    setActiveSampleFilename(null);
+    setErrorMessage(null);
+  };
+
+  const handleSelectSample = (sampleData) => {
+    setSelectedImage(sampleData);
+    setActiveSampleFilename(sampleData.sampleFilename);
+    setErrorMessage(null);
+  };
+
+  const handleClearImage = () => {
+    setSelectedImage(null);
+    setActiveSampleFilename(null);
+    setErrorMessage(null);
+  };
+
+  const handleExecute = () => {
+    if (!selectedImage) return;
+    setIsExecuting(true);
+    setErrorMessage(null);
+    // Placeholder execution flow - does not simulate algorithms in JS
+    setTimeout(() => {
+      setIsExecuting(false);
+    }, 1200);
+  };
+
+  const handleReset = () => {
+    setGamma(1.2);
+    setKernelSize(3);
+    setSharpenStrength(1.0);
+    setTransformationType('auto');
+    setErrorMessage(null);
   };
 
   return (
-    <div>
-      <div className="page-header">
-        <h1 className="page-title">Automatic Image Enhancement</h1>
-        <p className="page-desc">
-          Automated characteristic analysis with intensity transformations (gamma correction, histogram equalization) and spatial filtering (Laplacian / unsharp masking).
-        </p>
-      </div>
+    <div className="module-page-container">
+      <Breadcrumbs items={[{ label: 'Automatic Image Enhancement' }]} />
 
-      <div className="lab-layout">
-        <div className="controls-panel">
-          <h2 style={{ fontSize: '1.1rem', marginBottom: '1rem', color: '#fff' }}>Input & Controls</h2>
-          
-          <ImageDropzone 
-            onImageSelect={handleImageSelect}
-            previewUrl={previewUrl}
+      <PageHeader
+        moduleNumber="1"
+        title="Automatic Image Enhancement"
+        description="Analyzes input image characteristics (brightness, contrast, and histogram dispersion) and selects an appropriate intensity transformation (gamma, equalization, contrast stretch) and spatial filter. Compares output quality using MSE, PSNR, and SSIM."
+        tags={['Intensity Transformation', 'Spatial Filtering', 'Histogram Analysis', 'PSNR / SSIM']}
+        accentColor="blue"
+      />
+
+      <div className="module-layout-grid">
+        {/* Left Column: Input and Configuration */}
+        <div className="layout-sidebar">
+          <ImageUploadSection
+            selectedFile={selectedImage?.file}
+            imagePreview={selectedImage?.previewUrl}
+            imageMeta={selectedImage?.meta}
+            onImageSelected={handleImageSelected}
+            onClearImage={handleClearImage}
             label="Upload Test Image"
+            hint="PNG, JPG, TIFF, or BMP test images (min 5 different test sets)"
+            disabled={isExecuting}
           />
 
-          <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div>
-              <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.25rem' }}>
-                Gamma Value: {gamma}
+          <SampleSelector
+            moduleName="enhancement"
+            presets={ENHANCEMENT_PRESETS}
+            onSelectSample={handleSelectSample}
+            activeSampleFilename={activeSampleFilename}
+          />
+
+          <ProcessingControlsPlaceholder
+            title="3. Enhancement Controls"
+            hasImage={Boolean(selectedImage)}
+            isExecuting={isExecuting}
+            onExecute={handleExecute}
+            onReset={handleReset}
+            executeLabel="Analyze & Enhance"
+          >
+            <div className="control-group">
+              <label className="control-label">
+                Transformation Selection Mode
               </label>
-              <input 
-                type="range" 
-                min="0.2" 
-                max="3.0" 
-                step="0.1" 
-                value={gamma} 
-                onChange={(e) => setGamma(parseFloat(e.target.value))}
-                style={{ width: '100%' }}
-              />
+              <select
+                className="control-select"
+                value={transformationType}
+                onChange={(e) => setTransformationType(e.target.value)}
+                disabled={isExecuting}
+              >
+                <option value="auto">Auto-Select (Characteristic Analysis)</option>
+                <option value="gamma">Power-Law (Gamma Correction)</option>
+                <option value="equalization">Global Histogram Equalization</option>
+                <option value="clahe">Contrast Limited Adaptive Equalization (CLAHE)</option>
+                <option value="linear_stretch">Contrast Stretching (Min-Max Normalization)</option>
+              </select>
+              <span className="control-help">
+                System evaluates histogram variance & skewness to pick the best transformation.
+              </span>
             </div>
 
-            <div>
-              <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.25rem' }}>
-                Kernel Size: {kernelSize}x{kernelSize}
-              </label>
-              <select 
-                value={kernelSize} 
+            <div className="control-group">
+              <div className="control-label-row">
+                <label className="control-label">Gamma Exponent (γ)</label>
+                <span className="control-value-badge">{gamma.toFixed(2)}</span>
+              </div>
+              <input
+                type="range"
+                className="control-range"
+                min="0.2"
+                max="3.0"
+                step="0.05"
+                value={gamma}
+                onChange={(e) => setGamma(parseFloat(e.target.value))}
+                disabled={isExecuting}
+              />
+              <div className="range-bounds">
+                <span>0.2 (Brighten)</span>
+                <span>1.0 (Identity)</span>
+                <span>3.0 (Darken)</span>
+              </div>
+            </div>
+
+            <div className="control-group">
+              <label className="control-label">Spatial Filter Kernel</label>
+              <select
+                className="control-select"
+                value={kernelSize}
                 onChange={(e) => setKernelSize(parseInt(e.target.value, 10))}
-                style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', background: '#0f172a', color: '#fff', border: '1px solid var(--border-color)' }}
+                disabled={isExecuting}
               >
-                <option value={3}>3x3</option>
-                <option value={5}>5x5</option>
-                <option value={7}>7x7</option>
+                <option value={3}>3 × 3 Kernel</option>
+                <option value={5}>5 × 5 Kernel</option>
+                <option value={7}>7 × 7 Kernel</option>
               </select>
             </div>
 
-            <div>
-              <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.25rem' }}>
-                Sharpening Strength: {sharpenStrength}
-              </label>
-              <input 
-                type="range" 
-                min="0.0" 
-                max="3.0" 
-                step="0.2" 
-                value={sharpenStrength} 
+            <div className="control-group">
+              <div className="control-label-row">
+                <label className="control-label">Sharpening Strength</label>
+                <span className="control-value-badge">{sharpenStrength.toFixed(1)}</span>
+              </div>
+              <input
+                type="range"
+                className="control-range"
+                min="0.0"
+                max="3.0"
+                step="0.1"
+                value={sharpenStrength}
                 onChange={(e) => setSharpenStrength(parseFloat(e.target.value))}
-                style={{ width: '100%' }}
+                disabled={isExecuting}
               />
             </div>
-
-            <button className="btn btn-primary" style={{ marginTop: '0.5rem' }} disabled={!selectedFile}>
-              Run Automatic Enhancement
-            </button>
-          </div>
+          </ProcessingControlsPlaceholder>
         </div>
 
-        <div className="preview-panel">
-          <h2 style={{ fontSize: '1.1rem', marginBottom: '1rem', color: '#fff' }}>Comparison & Visualizations</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', flex: 1, minHeight: '260px' }}>
-            <div style={{ background: '#0f172a', border: '1px dashed var(--border-color)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
-              {previewUrl ? <img src={previewUrl} alt="Original" style={{ maxWidth: '100%', maxHeight: '240px', objectFit: 'contain' }} /> : 'Original Image View'}
-            </div>
-            <div style={{ background: '#0f172a', border: '1px dashed var(--border-color)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
-              Enhanced Output View
-            </div>
-          </div>
-
-          <div style={{ marginTop: '1.5rem', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
-            <MetricCard label="MSE" value="--" description="Mean Squared Error" />
-            <MetricCard label="PSNR" value="--" unit="dB" description="Peak Signal-to-Noise Ratio" />
-            <MetricCard label="SSIM" value="--" description="Structural Similarity" />
-          </div>
+        {/* Right Column: Visualizations & Quantitative Results */}
+        <div className="layout-main">
+          <ResultsAreaPlaceholder
+            hasImage={Boolean(selectedImage)}
+            imagePreview={selectedImage?.previewUrl}
+            isExecuting={isExecuting}
+            errorMessage={errorMessage}
+            onDismissError={() => setErrorMessage(null)}
+            moduleName="Automatic Enhancement"
+            resultViews={[
+              { label: "Original Input", key: "original" },
+              { label: "Enhanced Output", key: "enhanced" },
+              { label: "Histogram Comparison", key: "histograms" }
+            ]}
+            metrics={[
+              { label: "MSE", value: null, description: "Mean Squared Error" },
+              { label: "PSNR", value: null, unit: "dB", description: "Peak Signal-to-Noise Ratio" },
+              { label: "SSIM", value: null, description: "Structural Similarity Index" },
+              { label: "Mean Luminance", value: null, unit: "/ 255", description: "Input vs Enhanced Luminance" }
+            ]}
+          />
         </div>
       </div>
     </div>

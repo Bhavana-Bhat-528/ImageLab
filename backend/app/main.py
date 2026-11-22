@@ -53,3 +53,8 @@ app.include_router(boundary_router, prefix="/api")
 app.include_router(watershed_router, prefix="/api")
 app.include_router(fourier_router, prefix="/api")
 app.include_router(samples_router, prefix="/api")
+
+# URL alias routes to match frontend route naming
+app.include_router(boundary_router, prefix="/api/boundary-extraction")
+app.include_router(fourier_router, prefix="/api/shape-recognition")
+

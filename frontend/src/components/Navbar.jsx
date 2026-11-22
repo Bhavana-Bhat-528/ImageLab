@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, Link } from 'react-router-dom';
 import { checkBackendHealth } from '../services/api';
 
 export default function Navbar() {
@@ -19,35 +19,44 @@ export default function Navbar() {
 
   return (
     <header className="navbar">
-      <div className="brand-section">
-        <div className="brand-logo">IL</div>
-        <div>
-          <div className="brand-title">ImageLab</div>
-          <div className="brand-subtitle">Digital Image Processing Lab</div>
-        </div>
+      <div className="navbar-left">
+        <Link to="/" className="brand-link">
+          <div className="brand-logo-badge">IL</div>
+          <div className="brand-text">
+            <span className="brand-title">ImageLab</span>
+            <span className="brand-tagline">Interactive Digital Image Processing Laboratory</span>
+          </div>
+        </Link>
       </div>
 
-      <nav className="nav-links">
+      <nav className="navbar-nav" aria-label="Main Navigation">
         <NavLink to="/" end className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           Overview
         </NavLink>
         <NavLink to="/enhancement" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          1. Enhancement
+          Automatic Enhancement
         </NavLink>
-        <NavLink to="/boundary" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          2. Boundary Extraction
+        <NavLink to="/boundary-extraction" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+          Boundary Extraction
         </NavLink>
         <NavLink to="/watershed" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          3. Watershed
+          Watershed Segmentation
         </NavLink>
-        <NavLink to="/fourier" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          4. Fourier Descriptors
+        <NavLink to="/shape-recognition" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+          Shape Recognition
         </NavLink>
       </nav>
 
-      <div className="server-status" title={backendStatus === 'online' ? 'FastAPI Backend Connected' : 'FastAPI Backend Disconnected'}>
-        <span className={`status-dot ${backendStatus === 'online' ? 'online' : 'offline'}`}></span>
-        <span>API: {backendStatus === 'online' ? 'Connected (8000)' : 'Offline'}</span>
+      <div className="navbar-right">
+        <div 
+          className={`server-status-pill ${backendStatus}`} 
+          title={backendStatus === 'online' ? 'Python FastAPI REST API Online (Port 8000)' : 'Backend API Disconnected'}
+        >
+          <span className="status-ping-dot"></span>
+          <span className="status-label">
+            {backendStatus === 'online' ? 'FastAPI 8000' : 'Offline'}
+          </span>
+        </div>
       </div>
     </header>
   );

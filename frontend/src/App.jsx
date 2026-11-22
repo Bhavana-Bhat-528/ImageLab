@@ -1,11 +1,11 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Home from './pages/Home';
 import EnhancementPage from './pages/EnhancementPage';
-import BoundaryPage from './pages/BoundaryPage';
+import BoundaryExtractionPage from './pages/BoundaryExtractionPage';
 import WatershedPage from './pages/WatershedPage';
-import FourierPage from './pages/FourierPage';
+import ShapeRecognitionPage from './pages/ShapeRecognitionPage';
 import './styles/App.css';
 
 export default function App() {
@@ -17,9 +17,14 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/enhancement" element={<EnhancementPage />} />
-            <Route path="/boundary" element={<BoundaryPage />} />
+            <Route path="/boundary-extraction" element={<BoundaryExtractionPage />} />
             <Route path="/watershed" element={<WatershedPage />} />
-            <Route path="/fourier" element={<FourierPage />} />
+            <Route path="/shape-recognition" element={<ShapeRecognitionPage />} />
+            
+            {/* Backward compatibility redirects */}
+            <Route path="/boundary" element={<Navigate to="/boundary-extraction" replace />} />
+            <Route path="/fourier" element={<Navigate to="/shape-recognition" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
       </div>

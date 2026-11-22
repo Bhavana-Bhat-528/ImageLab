@@ -6,12 +6,23 @@ from app.config import settings
 router = APIRouter(prefix="/samples", tags=["Sample Images"])
 
 
+MODULE_DIR_MAP = {
+    "enhancement": "enhancement",
+    "boundary": "boundary",
+    "boundary-extraction": "boundary",
+    "watershed": "watershed",
+    "fourier": "fourier",
+    "shape-recognition": "fourier",
+}
+
+
 @router.get("/{module_name}")
 async def list_sample_images(module_name: str):
     """
     Returns the list of local sample images available for a given module.
     """
-    module_dir = settings.SAMPLES_DIR / module_name
+    dir_name = MODULE_DIR_MAP.get(module_name, module_name)
+    module_dir = settings.SAMPLES_DIR / dir_name
     if not module_dir.exists() or not module_dir.is_dir():
         return {"module": module_name, "samples": []}
     
@@ -20,7 +31,7 @@ async def list_sample_images(module_name: str):
         f.name for f in module_dir.iterdir()
         if f.is_file() and f.suffix.lower() in valid_exts
     ]
-    return {"module": module_name, "samples": files}
+    return {"module": module_name, "samples": sorted(files)}
 
 
 @router.get("/{module_name}/{filename}")
@@ -28,7 +39,9 @@ async def get_sample_image(module_name: str, filename: str):
     """
     Serves a specific local sample image file.
     """
-    file_path = settings.SAMPLES_DIR / module_name / filename
+    dir_name = MODULE_DIR_MAP.get(module_name, module_name)
+    file_path = settings.SAMPLES_DIR / dir_name / filename
     if not file_path.exists() or not file_path.is_file():
         raise HTTPException(status_code=404, detail="Sample image not found")
     return FileResponse(file_path)
+
