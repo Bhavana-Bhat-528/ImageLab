@@ -135,3 +135,36 @@ def evaluate_enhancement_metrics(
         }
 
     return metrics_result
+
+
+def compute_iou_dice(pred_mask: np.ndarray, gt_mask: np.ndarray) -> Dict[str, float]:
+    """
+    Computes Intersection over Union (IoU / Jaccard Index) and Dice Coefficient (F1 Score)
+    between a binary prediction mask and a binary ground-truth mask.
+    """
+    if pred_mask.shape != gt_mask.shape:
+        gt_mask = cv2.resize(gt_mask, (pred_mask.shape[1], pred_mask.shape[0]), interpolation=cv2.INTER_NEAREST)
+
+    p_bool = pred_mask > 0
+    g_bool = gt_mask > 0
+
+    intersection = np.logical_and(p_bool, g_bool).sum()
+    union = np.logical_or(p_bool, g_bool).sum()
+    p_sum = p_bool.sum()
+    g_sum = g_bool.sum()
+
+    if union == 0:
+        iou = 1.0
+        dice = 1.0
+    else:
+        iou = float(intersection / union)
+        dice = float((2.0 * intersection) / (p_sum + g_sum)) if (p_sum + g_sum) > 0 else 0.0
+
+    return {
+        "iou": round(iou, 4),
+        "dice": round(dice, 4),
+        "intersection_pixels": int(intersection),
+        "union_pixels": int(union),
+        "predicted_pixels": int(p_sum),
+        "ground_truth_pixels": int(g_sum)
+    }
