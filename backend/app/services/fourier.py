@@ -276,7 +276,9 @@ def get_training_library(num_descriptors: int = 16) -> Dict[str, Any]:
     y_train = np.array([s["category"] for s in train_samples]) if train_samples else np.empty(0)
 
     # Compute validation-based empirical acceptance threshold for each category
-    # tau_c = max(0.065, 1.6 * max_intra_distance)
+    # Calibrated envelope: max(0.065, min(0.38, 1.3 * max_intra_dist))
+    # Ensures organic variation (such as natural starfish arm curves and varying lengths)
+    # is accepted while keeping tight bounds for regular polygons and rejecting foreign outliers.
     acceptance_thresholds = {}
     for cat in SHAPE_CATEGORIES:
         cat_vecs = [s["descriptor"] for s in train_samples if s["category"] == cat]
@@ -287,7 +289,7 @@ def get_training_library(num_descriptors: int = 16) -> Dict[str, Any]:
                     d = float(np.linalg.norm(cat_vecs[i] - cat_vecs[j]))
                     if d > max_intra_dist:
                         max_intra_dist = d
-        acceptance_thresholds[cat] = round(max(0.065, 1.6 * max_intra_dist), 4)
+        acceptance_thresholds[cat] = round(max(0.065, min(0.38, 1.3 * max_intra_dist)), 4)
 
     _TRAINING_CACHE = {
         "num_descriptors": num_descriptors,
@@ -491,12 +493,17 @@ def recognize_shape_fourier(
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
     cleaned_binary = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel)
 
-    # 3. Contour extraction
-    contours, _ = cv2.findContours(cleaned_binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    # 3. Contour extraction (with safety border padding to prevent accidental edge cropping)
+    pad = 4
+    padded_binary = cv2.copyMakeBorder(cleaned_binary, pad, pad, pad, pad, cv2.BORDER_CONSTANT, value=0)
+    contours, _ = cv2.findContours(padded_binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     if not contours:
         raise ValueError("No distinct object boundary detected in image. Ensure foreground object is visible.")
 
     dominant_contour = max(contours, key=cv2.contourArea)
+    # Shift contour coordinates back to source image coordinate system
+    dominant_contour[:, :, 0] = np.clip(dominant_contour[:, :, 0] - pad, 0, w - 1)
+    dominant_contour[:, :, 1] = np.clip(dominant_contour[:, :, 1] - pad, 0, h - 1)
     contour_area = float(cv2.contourArea(dominant_contour))
     contour_perimeter = float(cv2.arcLength(dominant_contour, True))
 
