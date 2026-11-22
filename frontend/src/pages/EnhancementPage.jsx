@@ -42,6 +42,12 @@ const ENHANCEMENT_PRESETS = [
     label: 'Uneven Illumination',
     category: 'Non-Uniform Lighting',
     description: 'Non-uniform illumination gradient across document text.'
+  },
+  {
+    filename: '07_blurred_out_of_focus.png',
+    label: 'Blurred / Out-of-Focus',
+    category: 'Spatial Blur',
+    description: 'Low edge acuity (Laplacian variance < 400). Tests unsharp masking & high-boost filtering.'
   }
 ];
 

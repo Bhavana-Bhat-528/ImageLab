@@ -18,6 +18,7 @@ These images evaluate automatic histogram analysis, dynamic intensity transforma
 | `04_gaussian_noise.png` | 512 × 512 | PNG Grayscale | Synthesized additive zero-mean Gaussian noise ($\sigma = 28$) on *Cameraman* | Public Domain / CC0 | Continuous sensor thermal/electronic noise. Tests spatial Gaussian vs. bilateral smoothing prior to sharpening. |
 | `05_salt_and_pepper_noise.png` | 512 × 512 | PNG Grayscale | Synthesized impulse noise ($p = 0.05$) on *Cameraman* | Public Domain / CC0 | Saturated impulse dropouts. Demonstrates necessity of non-linear median filtering over linear box/Gaussian filters. |
 | `06_uneven_illumination.png` | 191 × 384 | PNG Grayscale | Standard text document from scikit-image `data.page()` | BSD 3-Clause / CC0 | Strong non-uniform background gradient. Benchmarks local adaptive thresholding and homomorphic filtering. |
+| `07_blurred_out_of_focus.png` | 512 × 512 | PNG Grayscale | Synthesized optical Gaussian blur ($5 \times 5, \sigma = 1.6$) on *Cameraman* | Public Domain / CC0 | Low spatial edge acuity and high-frequency attenuation. Evaluates unsharp masking and high-boost filtering. |
 
 ---
 

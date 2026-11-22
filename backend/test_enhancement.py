@@ -1,10 +1,12 @@
 """
 Unit & Integration test for Module 1: Automatic Image Enhancement.
-Tests all 5+ sample images across Automatic and Manual modes, verifying:
-- Characteristic analysis metrics
-- Adaptive pipeline decision
+Tests all 7 sample images across Automatic and Manual modes, verifying:
+- Characteristic analysis metrics (brightness, contrast, noise, sharpness, uniformity)
+- Adaptive pipeline decision and correct parameter orientation (gamma < 1 for dark, gamma > 1 for bright)
+- Noise removal (median for impulse, bilateral for sensor noise)
+- Blur detection and unsharp masking
 - Before/after histogram generation
-- Quantitative metrics (relative vs. ground-truth reference)
+- Quantitative metrics (relative vs. ground-truth reference with positive fidelity gain)
 """
 
 import asyncio
@@ -25,7 +27,8 @@ async def test_all_enhancement_samples():
             "03_bright_overexposed.png",
             "04_gaussian_noise.png",
             "05_salt_and_pepper_noise.png",
-            "06_uneven_illumination.png"
+            "06_uneven_illumination.png",
+            "07_blurred_out_of_focus.png"
         ]
 
         for fname in test_images:
@@ -41,20 +44,60 @@ async def test_all_enhancement_samples():
             res_data = res.json()
 
             chars = res_data["input_characteristics"]
+            enh_chars = res_data["enhanced_characteristics"]
             pipeline = res_data["pipeline"]
             metrics = res_data["metrics"]
 
             print(f"\n--- Testing [{fname}] ---")
-            print(f"  Mean: {chars['mean_intensity']:.1f}, Std: {chars['std_intensity']:.1f}, Contrast: {chars['rms_contrast']}, Noise: {chars['noise_sigma']:.1f}, Sharpness: {chars['sharpness_score']:.1f}")
-            print(f"  Detected Defect: {chars['diagnostics']['primary_defects']}")
-            print(f"  Selected Operations: {pipeline['selected_operations']}")
-            print(f"  Rel Metrics (vs Input): PSNR={metrics['relative_to_input']['psnr']} dB, SSIM={metrics['relative_to_input']['ssim']}")
+            print(f"  Input  -> Mean: {chars['mean_intensity']:.1f}, Std: {chars['std_intensity']:.1f}, Noise: {chars['noise_sigma']:.1f}, Sharpness: {chars['sharpness_score']:.1f}")
+            print(f"  Defects: {chars['diagnostics']['primary_defects']}")
+            print(f"  Ops    : {pipeline['selected_operations']}")
+            print(f"  Params : {pipeline['parameters']}")
+            print(f"  Output -> Mean: {enh_chars['mean_intensity']:.1f}, Std: {enh_chars['std_intensity']:.1f}, Sharpness: {enh_chars['sharpness_score']:.1f}")
             
             gt = metrics["ground_truth_comparison"]
             if gt["has_ground_truth"]:
-                print(f"  Ground Truth Reference ({gt['reference_name']}):")
-                print(f"    Base Input PSNR: {gt['input_vs_ground_truth']['psnr']} dB -> Enhanced PSNR: {gt['enhanced_vs_ground_truth']['psnr']} dB (Gain: {gt['psnr_gain_db']:+} dB)")
-                print(f"    Base Input SSIM: {gt['input_vs_ground_truth']['ssim']} -> Enhanced SSIM: {gt['enhanced_vs_ground_truth']['ssim']} (Gain: {gt['ssim_gain']:+})")
+                print(f"  Ground Truth ({gt['reference_name']}):")
+                print(f"    PSNR: {gt['input_vs_ground_truth']['psnr']} dB -> {gt['enhanced_vs_ground_truth']['psnr']} dB (Gain: {gt['psnr_gain_db']:+} dB)")
+                print(f"    SSIM: {gt['input_vs_ground_truth']['ssim']} -> {gt['enhanced_vs_ground_truth']['ssim']} (Gain: {gt['ssim_gain']:+})")
+
+            # Verification of specific improvements
+            if fname == "01_low_contrast.png":
+                assert enh_chars["std_intensity"] > chars["std_intensity"], "Contrast should increase!"
+                assert gt["ssim_gain"] > 0, "SSIM should improve on low contrast!"
+
+            elif fname == "02_dark_underexposed.png":
+                # Dark image MUST become brighter
+                assert enh_chars["mean_intensity"] > chars["mean_intensity"] + 25.0, "Dark image must brighten!"
+                assert pipeline["parameters"]["gamma"] < 1.0, "Gamma must be < 1.0 for dark images!"
+                assert gt["psnr_gain_db"] > 4.0, "PSNR gain should be substantial!"
+                assert gt["ssim_gain"] > 0.10, "SSIM gain should be positive!"
+
+            elif fname == "03_bright_overexposed.png":
+                # Bright image MUST become dimmer/compressed
+                assert enh_chars["mean_intensity"] < chars["mean_intensity"] - 15.0, "Bright image must darken!"
+                assert pipeline["parameters"]["gamma"] > 1.0, "Gamma must be > 1.0 for bright images!"
+                assert gt["psnr_gain_db"] > 1.5, "PSNR gain should be positive!"
+                assert gt["ssim_gain"] > 0.05, "SSIM gain should be positive!"
+
+            elif fname == "04_gaussian_noise.png":
+                # Noise must be reduced significantly
+                assert pipeline["parameters"]["spatial_filter"] == "bilateral"
+                assert gt["psnr_gain_db"] > 5.0, "Gaussian denoising PSNR gain should exceed 5 dB!"
+                assert gt["ssim_gain"] > 0.20, "SSIM gain should be substantial!"
+
+            elif fname == "05_salt_and_pepper_noise.png":
+                # Median filter must eliminate impulse spikes
+                assert pipeline["parameters"]["spatial_filter"] == "median"
+                assert gt["psnr_gain_db"] > 10.0, "Impulse denoising PSNR gain should exceed 10 dB!"
+                assert gt["ssim_gain"] > 0.40, "SSIM gain should be huge!"
+
+            elif fname == "07_blurred_out_of_focus.png":
+                # Blurred image must increase in sharpness
+                assert chars["diagnostics"]["is_blurry"], "Blur must be diagnosed!"
+                assert pipeline["parameters"]["sharpen_strength"] > 0.0, "Sharpening must be selected!"
+                assert enh_chars["sharpness_score"] > chars["sharpness_score"] * 1.5, "Sharpness must increase significantly!"
+                assert gt["psnr_gain_db"] > 0.5, "Restoration PSNR should improve!"
 
             # Verify histograms returned
             assert "original" in res_data["histograms"]
