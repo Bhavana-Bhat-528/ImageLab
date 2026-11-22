@@ -493,18 +493,19 @@ export default function WatershedPage() {
                 <div className="watershed-hero-content">
                   <div className="watershed-count-block">
                     <span className="watershed-count-number">
-                      {resultData.results.estimated_cell_count}
+                      {resultData.results?.estimated_cell_count ?? 0}
                     </span>
                     <div className="watershed-count-label">
                       <span className="watershed-count-title">Individual Cells Segmented</span>
                       <span className="watershed-count-subtitle">
-                        {resultData.results.foreground_area_percentage}% specimen coverage • {resultData.results.total_foreground_pixels.toLocaleString()} fg pixels
+                        {resultData.results?.foreground_area_percentage ?? 0}% specimen coverage • {(resultData.results?.total_foreground_pixels ?? 0).toLocaleString()} fg pixels
                       </span>
                     </div>
                   </div>
 
                   <div className="watershed-comparison-badges">
-                    {resultData.evaluation?.count_comparison?.reference_count !== undefined && (
+                    {resultData.evaluation?.count_comparison?.has_reference &&
+                     resultData.evaluation.count_comparison.reference_count != null && (
                       <div
                         className={`watershed-pill ${
                           resultData.evaluation.count_comparison.status_color === 'green'
@@ -519,9 +520,9 @@ export default function WatershedPage() {
                         </span>
                         <span>•</span>
                         <span>
-                          Δ = {resultData.evaluation.count_comparison.difference > 0 ? '+' : ''}
-                          {resultData.evaluation.count_comparison.difference} (
-                          {resultData.evaluation.count_comparison.percentage_error}% err)
+                          Δ = {(resultData.evaluation.count_comparison.count_difference ?? resultData.evaluation.count_comparison.difference ?? 0) > 0 ? '+' : ''}
+                          {resultData.evaluation.count_comparison.count_difference ?? resultData.evaluation.count_comparison.difference ?? 0} (
+                          {resultData.evaluation.count_comparison.percentage_error ?? 0}% err)
                         </span>
                         <span>•</span>
                         <span>{resultData.evaluation.count_comparison.status}</span>
@@ -538,13 +539,13 @@ export default function WatershedPage() {
               </div>
 
               {/* 2. Ground Truth Spatial Overlap Metrics (IoU & Dice) */}
-              {resultData.evaluation?.ground_truth_segmentation && (
+              {resultData.evaluation?.ground_truth_segmentation?.has_ground_truth && (
                 <div className="section-card">
                   <div className="section-card-header">
                     <div>
                       <h3 className="section-card-title">Ground-Truth Segmentation Accuracy</h3>
                       <p className="section-card-sub" style={{ marginBottom: 0 }}>
-                        Spatial overlap against manually verified reference mask: {resultData.evaluation.ground_truth_segmentation.ground_truth_name}
+                        Spatial overlap against manually verified reference mask: {resultData.evaluation.ground_truth_segmentation.ground_truth_name || resultData.evaluation.ground_truth_segmentation.reference_mask_name}
                       </p>
                     </div>
                     <span className="badge-academic" style={{ borderColor: 'var(--accent-emerald)', color: 'var(--accent-emerald)' }}>
@@ -556,14 +557,14 @@ export default function WatershedPage() {
                     <div className="metric-box" style={{ borderColor: 'rgba(52, 211, 153, 0.4)' }}>
                       <span className="metric-label">IoU (Jaccard Index)</span>
                       <span className="metric-value" style={{ color: 'var(--accent-emerald)' }}>
-                        {(resultData.evaluation.ground_truth_segmentation.iou * 100).toFixed(2)}
+                        {((resultData.evaluation.ground_truth_segmentation.iou ?? 0) * 100).toFixed(2)}
                         <span className="metric-unit"> %</span>
                       </span>
                       <div className="metric-progress-wrapper">
                         <div
                           className="metric-progress-fill"
                           style={{
-                            width: `${Math.min(100, resultData.evaluation.ground_truth_segmentation.iou * 100)}%`,
+                            width: `${Math.min(100, (resultData.evaluation.ground_truth_segmentation.iou ?? 0) * 100)}%`,
                             backgroundColor: 'var(--accent-emerald)'
                           }}
                         ></div>
@@ -574,14 +575,14 @@ export default function WatershedPage() {
                     <div className="metric-box" style={{ borderColor: 'rgba(52, 211, 153, 0.4)' }}>
                       <span className="metric-label">Dice Similarity (F1 Score)</span>
                       <span className="metric-value" style={{ color: 'var(--accent-emerald)' }}>
-                        {(resultData.evaluation.ground_truth_segmentation.dice * 100).toFixed(2)}
+                        {((resultData.evaluation.ground_truth_segmentation.dice ?? 0) * 100).toFixed(2)}
                         <span className="metric-unit"> %</span>
                       </span>
                       <div className="metric-progress-wrapper">
                         <div
                           className="metric-progress-fill"
                           style={{
-                            width: `${Math.min(100, resultData.evaluation.ground_truth_segmentation.dice * 100)}%`,
+                            width: `${Math.min(100, (resultData.evaluation.ground_truth_segmentation.dice ?? 0) * 100)}%`,
                             backgroundColor: 'var(--accent-cyan)'
                           }}
                         ></div>
@@ -592,21 +593,21 @@ export default function WatershedPage() {
                     <div className="metric-box">
                       <span className="metric-label">True Overlap Pixels</span>
                       <span className="metric-value">
-                        {resultData.evaluation.ground_truth_segmentation.overlap_pixels?.toLocaleString()}
+                        {(resultData.evaluation.ground_truth_segmentation.overlap_pixels ?? 0).toLocaleString()}
                       </span>
                       <span className="metric-description">
-                        Target GT: {resultData.evaluation.ground_truth_segmentation.ground_truth_pixels?.toLocaleString()} px
+                        Target GT: {(resultData.evaluation.ground_truth_segmentation.ground_truth_pixels ?? 0).toLocaleString()} px
                       </span>
                     </div>
 
                     <div className="metric-box">
                       <span className="metric-label">Max Distance Transform</span>
                       <span className="metric-value" style={{ color: 'var(--accent-cyan)' }}>
-                        {resultData.results.max_distance_transform_px}
+                        {resultData.results?.max_distance_transform_px ?? 0}
                         <span className="metric-unit"> px</span>
                       </span>
                       <span className="metric-description">
-                        Sure FG Seed Cutoff: {resultData.results.sure_fg_threshold_value} px
+                        Sure FG Seed Cutoff: {resultData.results?.sure_fg_threshold_value ?? 0} px
                       </span>
                     </div>
                   </div>
@@ -740,7 +741,7 @@ export default function WatershedPage() {
                   <div className="metric-box">
                     <span className="metric-label">Mean Cell Area</span>
                     <span className="metric-value">
-                      {resultData.results.statistics?.mean_cell_area_px}
+                      {resultData.results?.statistics?.mean_cell_area_px ?? 0}
                       <span className="metric-unit"> px²</span>
                     </span>
                     <span className="metric-description">Average footprint</span>
@@ -749,7 +750,7 @@ export default function WatershedPage() {
                   <div className="metric-box">
                     <span className="metric-label">Std Cell Area</span>
                     <span className="metric-value">
-                      ±{resultData.results.statistics?.std_cell_area_px}
+                      ±{resultData.results?.statistics?.std_cell_area_px ?? 0}
                       <span className="metric-unit"> px²</span>
                     </span>
                     <span className="metric-description">Area variation (σ)</span>
@@ -758,7 +759,7 @@ export default function WatershedPage() {
                   <div className="metric-box">
                     <span className="metric-label">Min Cell Area</span>
                     <span className="metric-value">
-                      {resultData.results.statistics?.min_cell_area_px}
+                      {resultData.results?.statistics?.min_cell_area_px ?? 0}
                       <span className="metric-unit"> px²</span>
                     </span>
                     <span className="metric-description">Smallest detected cell</span>
@@ -767,7 +768,7 @@ export default function WatershedPage() {
                   <div className="metric-box">
                     <span className="metric-label">Max Cell Area</span>
                     <span className="metric-value">
-                      {resultData.results.statistics?.max_cell_area_px}
+                      {resultData.results?.statistics?.max_cell_area_px ?? 0}
                       <span className="metric-unit"> px²</span>
                     </span>
                     <span className="metric-description">Largest cluster/cell</span>
@@ -775,7 +776,7 @@ export default function WatershedPage() {
                 </div>
 
                 {/* Individual Cell Measurements Table */}
-                {resultData.results.cell_details && resultData.results.cell_details.length > 0 && (
+                {resultData.results?.cell_details && resultData.results.cell_details.length > 0 && (
                   <div style={{ marginTop: '1.25rem' }}>
                     <div className="cell-table-container">
                       <table className="cell-table">
@@ -789,21 +790,30 @@ export default function WatershedPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {resultData.results.cell_details.map((cell) => (
-                            <tr key={cell.id}>
-                              <td style={{ fontWeight: 600, color: '#38bdf8' }}>#{cell.id}</td>
-                              <td>{cell.area_px.toLocaleString()}</td>
-                              <td>({cell.centroid_x}, {cell.centroid_y})</td>
-                              <td>{cell.equivalent_diameter_px}</td>
-                              <td>
-                                <span style={{
-                                  color: cell.circularity > 0.8 ? 'var(--accent-emerald)' : cell.circularity > 0.5 ? 'var(--accent-amber)' : 'var(--text-muted)'
-                                }}>
-                                  {cell.circularity}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
+                          {resultData.results.cell_details.map((cell, idx) => {
+                            const cellId = cell.cell_id ?? cell.id ?? (idx + 1);
+                            const area = cell.area_pixels ?? cell.area_px ?? 0;
+                            const cx = cell.centroid?.x ?? cell.centroid_x ?? 0;
+                            const cy = cell.centroid?.y ?? cell.centroid_y ?? 0;
+                            const eqDiam = cell.equivalent_diameter_px ?? 0;
+                            const circ = cell.circularity ?? 0;
+
+                            return (
+                              <tr key={cellId}>
+                                <td style={{ fontWeight: 600, color: '#38bdf8' }}>#{cellId}</td>
+                                <td>{Number(area).toLocaleString()}</td>
+                                <td>({cx}, {cy})</td>
+                                <td>{eqDiam}</td>
+                                <td>
+                                  <span style={{
+                                    color: circ > 0.8 ? 'var(--accent-emerald)' : circ > 0.5 ? 'var(--accent-amber)' : 'var(--text-muted)'
+                                  }}>
+                                    {circ}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>

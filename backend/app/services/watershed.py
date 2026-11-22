@@ -273,8 +273,12 @@ def segment_cells_watershed(
         hex_color = f"#{color[2]:02x}{color[1]:02x}{color[0]:02x}"
         cell_details.append({
             "cell_id": idx + 1,
+            "id": idx + 1,
             "area_pixels": area_px,
+            "area_px": area_px,
             "centroid": {"x": cx, "y": cy},
+            "centroid_x": cx,
+            "centroid_y": cy,
             "equivalent_diameter_px": eq_diameter,
             "circularity": circularity,
             "color_hex": hex_color
@@ -365,9 +369,12 @@ def segment_cells_watershed(
         "estimated_count": estimated_cell_count,
         "reference_source": ref_source,
         "count_difference": None,
+        "difference": None,
         "absolute_error": None,
         "percentage_error": None,
-        "status": "No Reference Specified"
+        "status": "No Reference Specified",
+        "status_color": "blue",
+        "notes": None
     }
 
     if reference_count is not None and reference_count > 0:
@@ -377,26 +384,40 @@ def segment_cells_watershed(
 
         if diff == 0:
             status = "Exact Match (100% Count Accuracy)"
+            status_color = "green"
+            notes = "Segmented cell count matches the ground-truth benchmark exactly."
         elif abs_err <= 2 or pct_err <= 10.0:
             status = "High Accuracy (Minor Variation)"
+            status_color = "blue"
+            notes = "Count is within standard inter-observer manual hemocytometer counting tolerance."
         elif diff > 0:
             status = f"Over-Segmentation (+{diff} extra regions)"
+            status_color = "amber"
+            notes = "Internal cell organelle intensity variations or low distance threshold generated extra markers. Increase distance ratio or min cell area."
         else:
             status = f"Under-Segmentation ({diff} missing cells)"
+            status_color = "amber"
+            notes = "Adjacent cells merged into single basins or threshold ratio excluded smaller cells. Lower distance ratio or blur kernel."
 
         count_comparison.update({
             "count_difference": diff,
+            "difference": diff,
             "absolute_error": abs_err,
             "percentage_error": pct_err,
-            "status": status
+            "status": status,
+            "status_color": status_color,
+            "notes": notes
         })
 
     # Ground-truth segmentation mask comparison (IoU & Dice)
     gt_comparison = {
         "has_ground_truth": False,
         "reference_mask_name": None,
-        "iou": None,
-        "dice": None,
+        "ground_truth_name": None,
+        "iou": 0.0,
+        "dice": 0.0,
+        "overlap_pixels": 0,
+        "ground_truth_pixels": 0,
         "interpretation": "No reference mask available for custom upload. Region morphology reported above."
     }
 
@@ -417,6 +438,7 @@ def segment_cells_watershed(
                 gt_comparison = {
                     "has_ground_truth": True,
                     "reference_mask_name": gt_filename,
+                    "ground_truth_name": gt_filename,
                     "iou": iou_dice["iou"],
                     "dice": iou_dice["dice"],
                     "overlap_pixels": iou_dice["intersection_pixels"],
