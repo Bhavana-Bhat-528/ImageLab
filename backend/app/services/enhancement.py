@@ -599,7 +599,9 @@ def process_image_enhancement(
     
     # Check if this input matches one of our controlled benchmark degraded samples
     if filename and any(filename.startswith(p) for p in ["01_", "02_", "03_", "04_", "05_", "07_"]):
-        clean_ref_path = settings.SAMPLES_DIR / "enhancement" / "clean_reference.png"
+        clean_ref_path = settings.SAMPLES_DIR / "enhancement" / "ground_truth" / "clean_reference.png"
+        if not clean_ref_path.exists():
+            clean_ref_path = settings.SAMPLES_DIR / "enhancement" / "clean_reference.png"
         if clean_ref_path.exists():
             ground_truth_img = cv2.imread(str(clean_ref_path), cv2.IMREAD_GRAYSCALE)
             ground_truth_name = "clean_reference.png (Pristine Cameraman)"

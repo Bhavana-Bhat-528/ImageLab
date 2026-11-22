@@ -17,10 +17,10 @@ async def process_boundary(
     box_y: Optional[int] = Form(None),
     box_w: Optional[int] = Form(None),
     box_h: Optional[int] = Form(None),
-    margin_pct: float = Form(6.0),
-    grabcut_iters: int = Form(5),
+    margin_pct: float = Form(4.0),
+    grabcut_iters: int = Form(4),
     overlay_color: str = Form("cyan"),
-    display_thickness: int = Form(1)
+    display_thickness: int = Form(2)
 ):
     """
     Morphological Boundary Extraction Endpoint:

@@ -9,12 +9,19 @@ Tests all 7 sample images across Automatic and Manual modes, verifying:
 - Quantitative metrics (relative vs. ground-truth reference with positive fidelity gain)
 """
 
+import sys
 import asyncio
 from pathlib import Path
+
+# Ensure backend directory is in sys.path
+backend_dir = Path(__file__).resolve().parent
+if str(backend_dir) not in sys.path:
+    sys.path.insert(0, str(backend_dir))
+
 import httpx
 from app.main import app
 
-SAMPLE_DIR = Path("data/samples/enhancement")
+SAMPLE_DIR = backend_dir / "data" / "samples" / "enhancement"
 
 async def test_all_enhancement_samples():
     transport = httpx.ASGITransport(app=app)

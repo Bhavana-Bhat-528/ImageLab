@@ -16,7 +16,19 @@ export default function SampleSelector({
     fetchSampleList(moduleName)
       .then((data) => {
         if (isMounted && data.samples && data.samples.length > 0) {
-          setRemoteSamples(data.samples);
+          // Strictly filter out any mask, result, ground truth, or non-input files
+          const cleanSamples = data.samples.filter((fname) => {
+            const lower = fname.toLowerCase();
+            return (
+              !lower.includes('mask') &&
+              !lower.includes('_gt') &&
+              !lower.includes('result') &&
+              !lower.includes('boundary') &&
+              !lower.includes('eroded') &&
+              !lower.includes('reference')
+            );
+          });
+          setRemoteSamples(cleanSamples);
         }
       })
       .catch(() => {
@@ -29,7 +41,7 @@ export default function SampleSelector({
     return () => { isMounted = false; };
   }, [moduleName]);
 
-  // Combine remote discovered samples with preset metadata
+  // Combine remote discovered original samples with preset metadata
   const sampleList = remoteSamples.length > 0
     ? remoteSamples.map((filename) => {
         const matchedPreset = presets.find(p => p.filename === filename);
@@ -37,7 +49,7 @@ export default function SampleSelector({
           filename,
           label: matchedPreset ? matchedPreset.label : filename.replace(/\.[^/.]+$/, ""),
           category: matchedPreset ? matchedPreset.category : "Sample Dataset",
-          description: matchedPreset ? matchedPreset.description : "Pre-collected test benchmark image",
+          description: matchedPreset ? matchedPreset.description : "Pre-collected test benchmark photograph",
           url: getSampleImageUrl(moduleName, filename)
         };
       })
@@ -52,7 +64,7 @@ export default function SampleSelector({
       const response = await fetch(sample.url);
       if (response.ok) {
         const blob = await response.blob();
-        const file = new File([blob], sample.filename, { type: blob.type || 'image/png' });
+        const file = new File([blob], sample.filename, { type: blob.type || 'image/jpeg' });
         const objectUrl = URL.createObjectURL(blob);
         const img = new Image();
         img.onload = () => {
@@ -65,14 +77,14 @@ export default function SampleSelector({
               size: (blob.size / 1024).toFixed(1) + ' KB',
               width: img.naturalWidth,
               height: img.naturalHeight,
-              type: blob.type || 'image/png',
+              type: blob.type || 'image/jpeg',
               sampleInfo: sample.description
             }
           });
         };
         img.src = objectUrl;
       } else {
-        // If image not physically on disk yet, provide metadata placeholder selection
+        // Fallback placeholder selection if image cannot be fetched
         onSelectSample({
           file: null,
           previewUrl: sample.url,
@@ -82,7 +94,7 @@ export default function SampleSelector({
             size: 'Local sample benchmark',
             width: 'Standard',
             height: 'Standard',
-            type: 'image/png',
+            type: 'image/jpeg',
             sampleInfo: sample.description
           }
         });
@@ -97,7 +109,7 @@ export default function SampleSelector({
           size: 'Local sample benchmark',
           width: 'Standard',
           height: 'Standard',
-          type: 'image/png',
+          type: 'image/jpeg',
           sampleInfo: sample.description
         }
       });

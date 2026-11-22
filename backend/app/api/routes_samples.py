@@ -18,10 +18,30 @@ CATEGORY_DIR_MAP = {
 VALID_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
 
 
+def is_valid_input_sample(path: Path) -> bool:
+    """
+    Ensures the sample selector lists ONLY original benchmark input photographs/images.
+    Excludes ground-truth masks, results, eroded masks, boundaries, and hidden files.
+    """
+    if not path.is_file():
+        return False
+    if path.suffix.lower() not in VALID_EXTENSIONS:
+        return False
+    name_lower = path.name.lower()
+    if name_lower.startswith("."):
+        return False
+    # Filter out ground-truth masks, result outputs, eroded masks, boundary masks
+    excluded_keywords = ["mask", "_gt", "ground_truth", "reference", "result", "boundary", "eroded", "processed"]
+    if any(k in name_lower for k in excluded_keywords):
+        return False
+    return True
+
+
 @router.get("")
 async def list_all_sample_categories():
     """
     Lists all available sample dataset categories and their image counts.
+    Strictly returns only original input sample images.
     """
     categories = ["enhancement", "boundary", "watershed", "recognition"]
     result = {}
@@ -30,7 +50,7 @@ async def list_all_sample_categories():
         if cat_dir.exists() and cat_dir.is_dir():
             files = [
                 f.name for f in cat_dir.iterdir()
-                if f.is_file() and f.suffix.lower() in VALID_EXTENSIONS
+                if is_valid_input_sample(f)
             ]
             result[cat] = {
                 "category": cat,
@@ -46,6 +66,7 @@ async def list_all_sample_categories():
 async def list_sample_images_by_category(category: str):
     """
     Lists all available benchmark sample images for a given category.
+    Strictly returns only original input images.
     """
     resolved_dir = CATEGORY_DIR_MAP.get(category.lower())
     if not resolved_dir:
@@ -60,7 +81,7 @@ async def list_sample_images_by_category(category: str):
 
     files = [
         f.name for f in cat_dir.iterdir()
-        if f.is_file() and f.suffix.lower() in VALID_EXTENSIONS
+        if is_valid_input_sample(f)
     ]
     return {
         "status": "success",
@@ -83,7 +104,12 @@ async def get_sample_image(category: str, filename: str):
             detail=f"Unknown category '{category}'."
         )
 
+    # First check category directory
     file_path = settings.SAMPLES_DIR / resolved_dir / filename
+    # If not found, check ground_truth subfolder
+    if not file_path.exists():
+        file_path = settings.SAMPLES_DIR / resolved_dir / "ground_truth" / filename
+
     if not file_path.exists() or not file_path.is_file():
         raise HTTPException(
             status_code=404,

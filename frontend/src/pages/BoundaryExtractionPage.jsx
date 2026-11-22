@@ -37,10 +37,10 @@ export default function BoundaryExtractionPage() {
   const [seSize, setSeSize] = useState(3);
   const [iterations, setIterations] = useState(1);
   const [segmentationMethod, setSegmentationMethod] = useState('grabcut');
-  const [grabcutIters, setGrabcutIters] = useState(5);
-  const [marginPct, setMarginPct] = useState(6.0);
+  const [grabcutIters, setGrabcutIters] = useState(4);
+  const [marginPct, setMarginPct] = useState(4.0);
   const [overlayColor, setOverlayColor] = useState('cyan');
-  const [displayThickness, setDisplayThickness] = useState(1);
+  const [displayThickness, setDisplayThickness] = useState(2);
 
   // Active Results Data
   const [resultData, setResultData] = useState(null);
