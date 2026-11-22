@@ -1462,3 +1462,218 @@
   margin-bottom: 0.85rem;
   line-height: 1.45;
 }
+
+/* ==========================================================================
+   Watershed Segmentation Specific Styles
+   ========================================================================== */
+.results-grid-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+@media (max-width: 1400px) {
+  .results-grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .results-grid-4 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.watershed-hero-card {
+  background: linear-gradient(135deg, rgba(30, 27, 75, 0.6) 0%, rgba(15, 23, 42, 0.8) 100%);
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  border-radius: var(--radius-md);
+  padding: 1.5rem 1.75rem;
+  margin-bottom: 1.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.watershed-hero-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(180deg, #a855f7 0%, #38bdf8 100%);
+}
+
+.watershed-hero-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+.watershed-count-block {
+  display: flex;
+  align-items: baseline;
+  gap: 0.85rem;
+}
+
+.watershed-count-number {
+  font-size: 3.25rem;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  line-height: 1;
+  background: linear-gradient(135deg, #c084fc 0%, #38bdf8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.watershed-count-label {
+  display: flex;
+  flex-direction: column;
+}
+
+.watershed-count-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.watershed-count-subtitle {
+  font-size: 0.775rem;
+  color: var(--text-muted);
+}
+
+.watershed-comparison-badges {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.watershed-pill {
+  padding: 0.4rem 0.85rem;
+  border-radius: 9999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid transparent;
+}
+
+.watershed-pill-success {
+  background: rgba(52, 211, 153, 0.15);
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.35);
+}
+
+.watershed-pill-warning {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+.watershed-pill-info {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
+.cell-table-container {
+  overflow-x: auto;
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  background-color: rgba(15, 23, 42, 0.4);
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.cell-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  text-align: left;
+}
+
+.cell-table th {
+  padding: 0.65rem 0.85rem;
+  background-color: rgba(15, 23, 42, 0.85);
+  border-bottom: 1px solid var(--border-medium);
+  color: var(--text-muted);
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.cell-table td {
+  padding: 0.55rem 0.85rem;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+}
+
+.cell-table tr:hover td {
+  background-color: rgba(56, 189, 248, 0.05);
+  color: #fff;
+}
+
+.metric-progress-wrapper {
+  margin-top: 0.4rem;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.metric-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.limitations-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+@media (max-width: 900px) {
+  .limitations-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.limitation-item-card {
+  background-color: rgba(15, 23, 42, 0.5);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  padding: 1rem 1.15rem;
+  border-left: 3px solid var(--accent-amber);
+}
+
+.limitation-item-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 0.35rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.limitation-item-text {
+  font-size: 0.775rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+  margin-bottom: 0.4rem;
+}
+
+.limitation-item-mitigation {
+  font-size: 0.75rem;
+  color: var(--accent-cyan);
+  line-height: 1.4;
+  background: rgba(56, 189, 248, 0.06);
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--radius-xs);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+}
