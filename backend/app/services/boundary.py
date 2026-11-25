@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 import cv2
 import numpy as np
+from skimage.segmentation import slic
 
 from app.utils.metrics import compute_iou_dice
 from app.utils.image_io import encode_image_to_base64
@@ -61,6 +62,130 @@ def fill_internal_holes(mask: np.ndarray) -> np.ndarray:
     return solid_padded[1:-1, 1:-1]
 
 
+def estimate_subject_rect(
+    image: np.ndarray,
+    margin_pct: float = 4.0
+) -> Tuple[int, int, int, int]:
+    """
+    Automatically estimates a subject-aware foreground bounding box using
+    superpixel manifold ranking saliency combined with local focus sharpness.
+    Prevents GrabCut from modeling large sky, forest, or background regions
+    as foreground when no manual bounding box is provided.
+    """
+    h, w = image.shape[:2]
+    mx = max(2, int(w * (margin_pct / 100.0)))
+    my = max(2, int(h * (margin_pct / 100.0)))
+    default_rect = (mx, my, max(10, w - 2 * mx), max(10, h - 2 * my))
+
+    if min(h, w) < 40:
+        return default_rect
+
+    try:
+        scale = min(1.0, 320.0 / max(h, w))
+        sw, sh = max(16, int(w * scale)), max(16, int(h * scale))
+        small = cv2.resize(image, (sw, sh), interpolation=cv2.INTER_AREA)
+        if len(small.shape) == 2:
+            small = cv2.cvtColor(small, cv2.COLOR_GRAY2BGR)
+
+        lab = cv2.cvtColor(small, cv2.COLOR_BGR2LAB).astype(np.float32)
+        rgb = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)
+        segments = slic(rgb, n_segments=250, compactness=15, start_label=0)
+        n_sp = int(segments.max()) + 1
+        if n_sp < 10:
+            return default_rect
+
+        # Local focus / edge sharpness energy
+        gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY).astype(np.float32)
+        lap = np.abs(cv2.Laplacian(gray, cv2.CV_32F, ksize=3))
+        lap = np.minimum(lap, np.percentile(lap, 96))
+        focus = cv2.GaussianBlur(lap, (0, 0), sigmaX=max(4.0, min(sw, sh) * 0.03))
+        focus = cv2.normalize(focus, None, 0.0, 1.0, cv2.NORM_MINMAX)
+
+        flat_seg = segments.ravel()
+        counts = np.bincount(flat_seg, minlength=n_sp).astype(np.float32)
+        counts = np.maximum(counts, 1.0)
+        yy, xx = np.mgrid[0:sh, 0:sw]
+        sp_lab = np.column_stack([
+            np.bincount(flat_seg, weights=lab[:, :, c].ravel(), minlength=n_sp) / counts
+            for c in range(3)
+        ]).astype(np.float32)
+        sp_pos = np.column_stack([
+            (np.bincount(flat_seg, weights=xx.ravel(), minlength=n_sp) / counts) / sw,
+            (np.bincount(flat_seg, weights=yy.ravel(), minlength=n_sp) / counts) / sh,
+        ]).astype(np.float32)
+        sp_foc = (np.bincount(flat_seg, weights=focus.ravel(), minlength=n_sp) / counts).astype(np.float32)
+
+        border_ids = np.unique(np.concatenate([
+            segments[0, :], segments[-1, :], segments[:, 0], segments[:, -1],
+            segments[int(sh * 0.04), :], segments[int(sh * 0.96), :]
+        ]))
+
+        dist_lab = np.linalg.norm(sp_lab[:, None, :] - sp_lab[None, :, :], axis=2)
+        dist_pos = np.linalg.norm(sp_pos[:, None, :] - sp_pos[None, :, :], axis=2)
+        adj = (dist_pos < 0.16) & (dist_pos > 0)
+        W = np.where(adj, np.exp(-dist_lab / 15.0), 0.0)
+        np.fill_diagonal(W, 0.0)
+        row_sum = W.sum(axis=1) + 1e-6
+        D_inv_sqrt = np.diag(1.0 / np.sqrt(row_sum))
+        S = D_inv_sqrt @ W @ D_inv_sqrt
+        y_bg = np.zeros(n_sp, dtype=np.float32)
+        y_bg[border_ids] = 1.0
+        f_bg = np.linalg.solve(np.eye(n_sp, dtype=np.float32) - 0.99 * S, y_bg)
+        f_bg = (f_bg - f_bg.min()) / (f_bg.max() - f_bg.min() + 1e-6)
+        sal_mr = 1.0 - f_bg
+
+        sal_sp = sal_mr * (0.25 + 0.75 * sp_foc)
+        sal_map = sal_sp[segments]
+        center = np.exp(-(((xx - sw * 0.5) / (0.52 * sw)) ** 2 + ((yy - sh * 0.52) / (0.52 * sh)) ** 2))
+        sal_map = sal_map * (0.4 + 0.6 * center)
+        sal_map = (sal_map - sal_map.min()) / (sal_map.max() - sal_map.min() + 1e-6)
+
+        bw1 = max(3, int(min(sh, sw) * 0.04))
+        mask1 = np.full((sh, sw), cv2.GC_PR_BGD, dtype=np.uint8)
+        sal_u8 = (sal_map * 255).astype(np.uint8)
+        t_otsu, _ = cv2.threshold(sal_u8[bw1:-bw1, bw1:-bw1], 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        t_pr = max(0.35, t_otsu / 255.0)
+        mask1[sal_map >= t_pr] = cv2.GC_PR_FGD
+        mask1[sal_map >= max(0.70, t_pr + 0.18)] = cv2.GC_FGD
+        mask1[:bw1, :] = cv2.GC_BGD
+        mask1[-bw1:, :] = cv2.GC_BGD
+        mask1[:, :bw1] = cv2.GC_BGD
+        mask1[:, -bw1:] = cv2.GC_BGD
+
+        bgd, fgd = np.zeros((1, 65), np.float64), np.zeros((1, 65), np.float64)
+        cv2.grabCut(small, mask1, None, bgd, fgd, 3, cv2.GC_INIT_WITH_MASK)
+        fg1 = np.where((mask1 == cv2.GC_FGD) | (mask1 == cv2.GC_PR_FGD), 255, 0).astype(np.uint8)
+
+        num_l, labels, stats, _ = cv2.connectedComponentsWithStats(fg1)
+        if num_l <= 1:
+            return default_rect
+
+        largest = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
+        ys, xs = np.where(labels == largest)
+        if len(xs) < 16:
+            return default_rect
+
+        x1, x2 = int(np.min(xs)), int(np.max(xs))
+        y1, y2 = int(np.min(ys)), int(np.max(ys))
+        x1 = max(int(sw * 0.04), x1 - int(sw * 0.10))
+        y1 = max(int(sh * 0.04), y1 - int(sh * 0.12))
+        x2 = min(sw - int(sw * 0.04), x2 + int(sw * 0.22))
+        y2 = min(sh - int(sh * 0.04), y2 + int(sh * 0.22))
+
+        # Balance guard: if subject spans >= 85% width, keep balanced margin rect
+        # so top sky does not dominate the outer background GMM.
+        if (x2 - x1) >= 0.85 * sw:
+            return default_rect
+
+        fx = max(1, int(x1 / scale))
+        fy = max(1, int(y1 / scale))
+        fw = max(16, min(w - fx - 1, int((x2 - x1) / scale)))
+        fh = max(16, min(h - fy - 1, int((y2 - y1) / scale)))
+        return (fx, fy, fw, fh)
+    except Exception:
+        return default_rect
+
+
 def segment_animal_foreground(
     image: np.ndarray,
     method: str = "grabcut",
@@ -70,13 +195,15 @@ def segment_animal_foreground(
 ) -> Tuple[np.ndarray, np.ndarray, Tuple[int, int, int, int]]:
     """
     Segments animal foreground from natural complex backgrounds.
-    Uses multi-scale pyramid GrabCut to ensure fast, non-blocking execution (< 0.5s)
-    even for high-resolution images, with Otsu and Adaptive fallbacks.
+    Uses subject-aware bounding-box localization + multi-scale pyramid GrabCut
+    to ensure fast, non-blocking execution (< 0.5s) and clean background exclusion,
+    with Otsu and Adaptive fallbacks.
 
     Returns:
         (binary_mask, preprocessed_visualization, applied_rect)
     """
     h, w = image.shape[:2]
+    applied_method = method.lower()
 
     # Resolve bounding box on full resolution
     if box_coords and len(box_coords) == 4 and box_coords[2] > 10 and box_coords[3] > 10:
@@ -86,6 +213,8 @@ def segment_animal_foreground(
         bw = max(10, min(bw, w - bx - 1))
         bh = max(10, min(bh, h - by - 1))
         rect = (bx, by, bw, bh)
+    elif applied_method == "grabcut":
+        rect = estimate_subject_rect(image, margin_pct=margin_pct)
     else:
         mx = max(2, int(w * (margin_pct / 100.0)))
         my = max(2, int(h * (margin_pct / 100.0)))
@@ -166,7 +295,20 @@ def segment_animal_foreground(
     k_open = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
     fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_OPEN, k_open)
 
-    # 5. Fallback safety guard: if mask is entirely empty, initialize central elliptical animal envelope
+    # 5. Retain primary foreground subject (suppresses stray background specks & distant fragments)
+    if applied_method == "grabcut":
+        num_l, labels, stats, _ = cv2.connectedComponentsWithStats(fg_mask)
+        if num_l > 1:
+            areas = stats[1:, cv2.CC_STAT_AREA]
+            max_area = int(np.max(areas))
+            keep_mask = np.zeros_like(fg_mask)
+            for idx, area in enumerate(areas, start=1):
+                if area >= max(500, int(0.15 * max_area)):
+                    keep_mask[labels == idx] = 255
+            if np.count_nonzero(keep_mask) >= 100:
+                fg_mask = keep_mask
+
+    # 6. Fallback safety guard: if mask is entirely empty, initialize central elliptical animal envelope
     if np.count_nonzero(fg_mask) < 100:
         cv2.ellipse(fg_mask, (w // 2, h // 2), (int(w * 0.35), int(h * 0.30)), 0, 0, 360, 255, -1)
 

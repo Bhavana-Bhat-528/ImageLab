@@ -47,6 +47,18 @@ export function getSampleImageUrl(moduleName, filename) {
   return `${API_BASE_URL}/samples/${moduleName}/${filename}`;
 }
 
+export async function analyzeEnhancementImage(formData) {
+  const response = await fetchWithTimeout(`${API_BASE_URL}/enhancement/analyze`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Image analysis failed (${response.status})`);
+  }
+  return response.json();
+}
+
 export async function processEnhancement(formData) {
   const response = await fetchWithTimeout(`${API_BASE_URL}/enhancement/process`, {
     method: 'POST',
